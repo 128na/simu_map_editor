@@ -1,0 +1,14 @@
+{
+  "name": "simu-map-editor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Browser-based terrain heightmap editor for Simutrans",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "lint": "npm run lint:docs",
+    "lint:docs": "docs-lint"
+  },
+  "devDependencies": {
+    "docs-lint": "github:128na/docs-lint#v1.1.0"
+  }
+}
