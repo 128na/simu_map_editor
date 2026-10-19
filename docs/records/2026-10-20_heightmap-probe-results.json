@@ -1,0 +1,267 @@
+{
+  "sourceCommit": "af90444e46dfd422bfdf80518aaa568659ec6b00",
+  "build": {
+    "probeSha256": "adf89f22c9315af53970bbf0a409ed92bbac4b52c9425b130055372cdb9080e3",
+    "sourceCommit": "af90444e46dfd422bfdf80518aaa568659ec6b00",
+    "buildScriptSha256": "a75a92460a9ebc57e6b82037a5e147384863de327679c8217a6b7add926db4d5",
+    "executableSha256": "641e4d1e6c1f65524e56322e0199cbff5becb648792c73c4d4ae1cebf36de52e",
+    "compiler": "g++.exe (Rev3, Built by MSYS2 project) 16.2.0"
+  },
+  "fixtureCount": 15,
+  "passedCases": 240,
+  "scope": "Original image decoders, height_map_loader and surface_t::raise_grid_to; world initialization/cleanup sequencing is harness code, not full game runtime.",
+  "notVerified": [
+    "full world ground/water generation",
+    "lake/river/beach generation",
+    "browser/GPU performance",
+    "editor brush operations"
+  ],
+  "fixtures": [
+    {
+      "name": "all-values.png",
+      "w": 256,
+      "h": 1,
+      "sha256": "134493bb721f144a1a9495a767b51f4e2b85c75e0d6724043c3a32550ed30e14"
+    },
+    {
+      "name": "asymmetric-bottom-up.bmp",
+      "w": 9,
+      "h": 8,
+      "sha256": "00199083fa36839b066b25dc2499883988c752e79e15cdcaf058b0935230fa8c"
+    },
+    {
+      "name": "asymmetric-top-down.bmp",
+      "w": 9,
+      "h": 8,
+      "sha256": "4d117f2dac6282cffc1f1f65111c16420903247f065011ce46a16fa49cf8becf"
+    },
+    {
+      "name": "asymmetric-palette.bmp",
+      "w": 9,
+      "h": 8,
+      "sha256": "5d1bbe08deae7f8c25782095ff722d2073400fad4348e0741da9dfa4659e9873"
+    },
+    {
+      "name": "asymmetric-rle8.bmp",
+      "w": 9,
+      "h": 8,
+      "sha256": "78cca3c027fe0801df51f2df56e39f1e8428d6816c07c294d6ffd8babaedd25e"
+    },
+    {
+      "name": "asymmetric.ppm",
+      "w": 9,
+      "h": 8,
+      "sha256": "ccf018c3da9eb0406d2993224dcae5c073ea2f0d9515f652f511414092405962"
+    },
+    {
+      "name": "asymmetric.png",
+      "w": 9,
+      "h": 8,
+      "sha256": "7edb1ecf959b2f3a2e3aabff37b1976e0e76d20c041e2b86db5bdfd756e48d5b"
+    },
+    {
+      "name": "gray16.png",
+      "w": 9,
+      "h": 8,
+      "sha256": "1badcf81ff59625b31d243a60cc0b22ba5cce9fee18926065f76bf53534ebf3f"
+    },
+    {
+      "name": "red-channel.bmp",
+      "w": 9,
+      "h": 8,
+      "sha256": "aa8ef9ce4646183b4ca3b594066c8b723f8f1b36b0c849b168fb18ca90e926fd"
+    },
+    {
+      "name": "red-channel.ppm",
+      "w": 9,
+      "h": 8,
+      "sha256": "24a05fae49a3894a7374a5cd6e2f6f251bebb023c0171d24e4d68e33a0475d42"
+    },
+    {
+      "name": "red-channel.png",
+      "w": 9,
+      "h": 8,
+      "sha256": "01c54006a4db39a2e366fe89e22f108116db273c55ca569cb881effdc951ae5b"
+    },
+    {
+      "name": "flat.png",
+      "w": 9,
+      "h": 9,
+      "sha256": "7bf4a17e7b2474b9fe90cf3664fce60dfbfe6482e955be0572b0fec2172f79b8"
+    },
+    {
+      "name": "spike.png",
+      "w": 9,
+      "h": 9,
+      "sha256": "8694a23636524ceefd95380add6d0522a1fed738555d520a545c92d3cf5c1898"
+    },
+    {
+      "name": "pit.png",
+      "w": 9,
+      "h": 9,
+      "sha256": "73f744fd707e7487408477b833bbeca8c86b524f8ff4a36e576123c47a587b67"
+    },
+    {
+      "name": "corners.png",
+      "w": 9,
+      "h": 9,
+      "sha256": "382435b1534af38c9e4541e9d6fd431934e826ada2001409083db77bb36f1478"
+    }
+  ],
+  "inverse": [
+    {
+      "mode": 0,
+      "factor": 1,
+      "reachableLevels": 22,
+      "min": -12,
+      "max": 9
+    },
+    {
+      "mode": 0,
+      "factor": 2,
+      "reachableLevels": 32,
+      "min": -12,
+      "max": 19
+    },
+    {
+      "mode": 1,
+      "factor": 1,
+      "reachableLevels": 26,
+      "min": -12,
+      "max": 13
+    },
+    {
+      "mode": 1,
+      "factor": 2,
+      "reachableLevels": 42,
+      "min": -12,
+      "max": 29
+    },
+    {
+      "mode": 2,
+      "factor": 1,
+      "reachableLevels": 45,
+      "min": -12,
+      "max": 32
+    },
+    {
+      "mode": 2,
+      "factor": 2,
+      "reachableLevels": 45,
+      "min": -12,
+      "max": 32
+    },
+    {
+      "mode": 3,
+      "factor": 1,
+      "reachableLevels": 45,
+      "min": -12,
+      "max": 32
+    },
+    {
+      "mode": 3,
+      "factor": 2,
+      "reachableLevels": 45,
+      "min": -12,
+      "max": 32
+    }
+  ],
+  "caseGroups": [
+    {
+      "mode": 0,
+      "factor": 1,
+      "maxSlope": 1,
+      "passedCases": 15
+    },
+    {
+      "mode": 0,
+      "factor": 1,
+      "maxSlope": 2,
+      "passedCases": 15
+    },
+    {
+      "mode": 0,
+      "factor": 2,
+      "maxSlope": 1,
+      "passedCases": 15
+    },
+    {
+      "mode": 0,
+      "factor": 2,
+      "maxSlope": 2,
+      "passedCases": 15
+    },
+    {
+      "mode": 1,
+      "factor": 1,
+      "maxSlope": 1,
+      "passedCases": 15
+    },
+    {
+      "mode": 1,
+      "factor": 1,
+      "maxSlope": 2,
+      "passedCases": 15
+    },
+    {
+      "mode": 1,
+      "factor": 2,
+      "maxSlope": 1,
+      "passedCases": 15
+    },
+    {
+      "mode": 1,
+      "factor": 2,
+      "maxSlope": 2,
+      "passedCases": 15
+    },
+    {
+      "mode": 2,
+      "factor": 1,
+      "maxSlope": 1,
+      "passedCases": 15
+    },
+    {
+      "mode": 2,
+      "factor": 1,
+      "maxSlope": 2,
+      "passedCases": 15
+    },
+    {
+      "mode": 2,
+      "factor": 2,
+      "maxSlope": 1,
+      "passedCases": 15
+    },
+    {
+      "mode": 2,
+      "factor": 2,
+      "maxSlope": 2,
+      "passedCases": 15
+    },
+    {
+      "mode": 3,
+      "factor": 1,
+      "maxSlope": 1,
+      "passedCases": 15
+    },
+    {
+      "mode": 3,
+      "factor": 1,
+      "maxSlope": 2,
+      "passedCases": 15
+    },
+    {
+      "mode": 3,
+      "factor": 2,
+      "maxSlope": 1,
+      "passedCases": 15
+    },
+    {
+      "mode": 3,
+      "factor": 2,
+      "maxSlope": 2,
+      "passedCases": 15
+    }
+  ]
+}

@@ -3,10 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "description": "Browser-based terrain heightmap editor for Simutrans",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "lint": "npm run lint:docs",
-    "lint:docs": "docs-lint"
+    "lint:docs": "docs-lint",
+    "validate:heightmaps": "powershell -NoProfile -File tools/validation/build-probe.ps1 && node tools/validation/verify-heightmaps.mjs"
   },
   "devDependencies": {
     "docs-lint": "github:128na/docs-lint#v1.1.0"

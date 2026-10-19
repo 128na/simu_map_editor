@@ -15,6 +15,8 @@ npm run lint
 
 アプリの起動・ビルドコマンドは、アプリ実装時に追加します。
 
+WindowsでSimutransの実ソースを照合する場合は `npm run validate:heightmaps` を使います。外部ソース・コンパイラ等の前提と検証範囲は [検証記録](docs/records/2026-10-20_heightmap-probe-validation.md) を参照してください。
+
 ## ドキュメント
 
 ドキュメントは [docs/README.md](docs/README.md) の規約に従います。
