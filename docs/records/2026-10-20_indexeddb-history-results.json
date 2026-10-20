@@ -1,0 +1,396 @@
+{
+  "history-storage-chrome": {
+    "metadata": {
+      "schemaVersion": 1,
+      "benchmarkVersion": "history-spill-v1",
+      "recordedAt": "2026-10-20T07:02:42.836Z",
+      "revision": "05e36827ebd38d3b6ebebb9dce61591ba9bff3c0",
+      "repository": null,
+      "runId": null,
+      "runAttempt": null,
+      "runUrl": null,
+      "workflow": null,
+      "environment": {
+        "node": "v26.4.0",
+        "os": "win32",
+        "arch": "x64",
+        "cpu": "12th Gen Intel(R) Core(TM) i9-12900F",
+        "runnerOS": null,
+        "runnerName": null
+      }
+    },
+    "browser": "chrome",
+    "browserVersion": "155.0.8059.82",
+    "profileMode": "isolated persistent profile",
+    "chunkBytes": 4194304,
+    "cleanupLateRejected": "HistoryCleanupInProgressError",
+    "shorterOverwriteMatches": true,
+    "queueBudget": {
+      "budgetError": "HistoryBudgetExceededError",
+      "retainedDuringWrite": true,
+      "callerBytes": 1048576,
+      "hotAfterCommit": 0
+    },
+    "records": [
+      {
+        "bytes": 67108864,
+        "writes": [
+          154.90000000223517,
+          179.69999999925494,
+          157.39999999850988
+        ],
+        "reads": [
+          95.39999999850988,
+          100,
+          96.40000000223517
+        ],
+        "enqueue": [
+          0.20000000298023224,
+          0.09999999776482582,
+          0.10000000149011612
+        ],
+        "worker": [
+          141.89999999850988,
+          164.39999999850988,
+          143.80000000074506
+        ],
+        "preparation": [
+          12.599999997764826,
+          14.700000002980232,
+          13.099999997764826
+        ],
+        "maxFrameGapDuringIO": 17.5,
+        "hotBytes": 0
+      },
+      {
+        "bytes": 268435456,
+        "writes": [
+          624.3999999985099,
+          727.2999999970198,
+          781.1000000014901
+        ],
+        "reads": [
+          375.30000000074506,
+          439.4000000022352,
+          460.5
+        ],
+        "enqueue": [
+          0,
+          0,
+          0
+        ],
+        "worker": [
+          567.1999999992549,
+          664.5,
+          715.8000000007451
+        ],
+        "preparation": [
+          56.899999998509884,
+          62.399999998509884,
+          64.79999999701977
+        ],
+        "maxFrameGapDuringIO": 65.60000000149012,
+        "hotBytes": 0
+      }
+    ],
+    "deltaBatchMs": 136.79999999701977,
+    "deltaBytes": 20971520,
+    "failures": [
+      {
+        "fault": "abort",
+        "caught": "AbortError",
+        "head": 0,
+        "retained": true,
+        "hotBytes": 4096
+      },
+      {
+        "fault": "quota",
+        "caught": "QuotaExceededError",
+        "head": 0,
+        "retained": true,
+        "hotBytes": 4096
+      }
+    ],
+    "oldMissing": true,
+    "otherPreserved": true,
+    "reopenMatches": true,
+    "abortedAbsent": true,
+    "estimateBefore": {
+      "quota": 10737420170,
+      "usage": 1930,
+      "usageDetails": {
+        "indexedDB": 1930
+      }
+    },
+    "estimateAfter": {
+      "quota": 10758789797,
+      "usage": 21371557,
+      "usageDetails": {
+        "indexedDB": 21371557
+      }
+    },
+    "quotaFaultIsInjected": true
+  },
+  "history-storage-edge": {
+    "metadata": {
+      "schemaVersion": 1,
+      "benchmarkVersion": "history-spill-v1",
+      "recordedAt": "2026-10-20T07:02:50.219Z",
+      "revision": "05e36827ebd38d3b6ebebb9dce61591ba9bff3c0",
+      "repository": null,
+      "runId": null,
+      "runAttempt": null,
+      "runUrl": null,
+      "workflow": null,
+      "environment": {
+        "node": "v26.4.0",
+        "os": "win32",
+        "arch": "x64",
+        "cpu": "12th Gen Intel(R) Core(TM) i9-12900F",
+        "runnerOS": null,
+        "runnerName": null
+      }
+    },
+    "browser": "edge",
+    "browserVersion": "155.0.4283.62",
+    "profileMode": "isolated persistent profile",
+    "chunkBytes": 4194304,
+    "cleanupLateRejected": "HistoryCleanupInProgressError",
+    "shorterOverwriteMatches": true,
+    "queueBudget": {
+      "budgetError": "HistoryBudgetExceededError",
+      "retainedDuringWrite": true,
+      "callerBytes": 1048576,
+      "hotAfterCommit": 0
+    },
+    "records": [
+      {
+        "bytes": 67108864,
+        "writes": [
+          159.30000000074506,
+          169.20000000298023,
+          169.30000000074506
+        ],
+        "reads": [
+          93.40000000223517,
+          102.39999999850988,
+          92.5
+        ],
+        "enqueue": [
+          0.20000000298023224,
+          0,
+          0
+        ],
+        "worker": [
+          146,
+          151.69999999925494,
+          153.5
+        ],
+        "preparation": [
+          12.799999997019768,
+          16.900000002235174,
+          15.5
+        ],
+        "maxFrameGapDuringIO": 17.600000001490116,
+        "hotBytes": 0
+      },
+      {
+        "bytes": 268435456,
+        "writes": [
+          706.0999999977648,
+          650.5,
+          726.8000000007451
+        ],
+        "reads": [
+          399,
+          435.3999999985099,
+          429.80000000074506
+        ],
+        "enqueue": [
+          0,
+          0,
+          0
+        ],
+        "worker": [
+          641.6000000014901,
+          598.2999999970198,
+          676.3000000007451
+        ],
+        "preparation": [
+          56.399999998509884,
+          51.80000000074506,
+          50.100000001490116
+        ],
+        "maxFrameGapDuringIO": 57.30000000074506,
+        "hotBytes": 0
+      }
+    ],
+    "deltaBatchMs": 137.80000000074506,
+    "deltaBytes": 20971520,
+    "failures": [
+      {
+        "fault": "abort",
+        "caught": "AbortError",
+        "head": 0,
+        "retained": true,
+        "hotBytes": 4096
+      },
+      {
+        "fault": "quota",
+        "caught": "QuotaExceededError",
+        "head": 0,
+        "retained": true,
+        "hotBytes": 4096
+      }
+    ],
+    "oldMissing": true,
+    "otherPreserved": true,
+    "reopenMatches": true,
+    "abortedAbsent": true,
+    "estimateBefore": {
+      "quota": 10737420170,
+      "usage": 1930,
+      "usageDetails": {
+        "indexedDB": 1930
+      }
+    },
+    "estimateAfter": {
+      "quota": 10758789793,
+      "usage": 21371553,
+      "usageDetails": {
+        "indexedDB": 21371553
+      }
+    },
+    "quotaFaultIsInjected": true
+  },
+  "history-quota-chrome": {
+    "metadata": {
+      "schemaVersion": 1,
+      "benchmarkVersion": "history-spill-v1",
+      "recordedAt": "2026-10-20T07:02:43.902Z",
+      "revision": "05e36827ebd38d3b6ebebb9dce61591ba9bff3c0",
+      "repository": null,
+      "runId": null,
+      "runAttempt": null,
+      "runUrl": null,
+      "workflow": null,
+      "environment": {
+        "node": "v26.4.0",
+        "os": "win32",
+        "arch": "x64",
+        "cpu": "12th Gen Intel(R) Core(TM) i9-12900F",
+        "runnerOS": null,
+        "runnerName": null
+      }
+    },
+    "browser": "chrome",
+    "browserVersion": "155.0.8059.82",
+    "profileMode": "isolated persistent profile",
+    "chunkBytes": 4194304,
+    "quotaObserved": {
+      "cdp": {
+        "usage": 8325,
+        "quota": 1048576,
+        "overrideActive": true,
+        "usageBreakdown": [
+          {
+            "storageType": "file_systems",
+            "usage": 0
+          },
+          {
+            "storageType": "indexeddb",
+            "usage": 8325
+          },
+          {
+            "storageType": "cache_storage",
+            "usage": 0
+          },
+          {
+            "storageType": "service_workers",
+            "usage": 0
+          }
+        ]
+      },
+      "estimate": {
+        "quota": 10737426565,
+        "usage": 8325,
+        "usageDetails": {
+          "indexedDB": 8325
+        }
+      }
+    },
+    "caught": "QuotaExceededError",
+    "head": 0,
+    "hotBytes": 8388608,
+    "retained": true,
+    "failedAbsent": true,
+    "previous": 4096,
+    "quotaBytes": 1048576,
+    "attemptedBytes": 8388608
+  },
+  "history-quota-edge": {
+    "metadata": {
+      "schemaVersion": 1,
+      "benchmarkVersion": "history-spill-v1",
+      "recordedAt": "2026-10-20T07:02:51.367Z",
+      "revision": "05e36827ebd38d3b6ebebb9dce61591ba9bff3c0",
+      "repository": null,
+      "runId": null,
+      "runAttempt": null,
+      "runUrl": null,
+      "workflow": null,
+      "environment": {
+        "node": "v26.4.0",
+        "os": "win32",
+        "arch": "x64",
+        "cpu": "12th Gen Intel(R) Core(TM) i9-12900F",
+        "runnerOS": null,
+        "runnerName": null
+      }
+    },
+    "browser": "edge",
+    "browserVersion": "155.0.4283.62",
+    "profileMode": "isolated persistent profile",
+    "chunkBytes": 4194304,
+    "quotaObserved": {
+      "cdp": {
+        "usage": 8321,
+        "quota": 1048576,
+        "overrideActive": true,
+        "usageBreakdown": [
+          {
+            "storageType": "file_systems",
+            "usage": 0
+          },
+          {
+            "storageType": "indexeddb",
+            "usage": 8321
+          },
+          {
+            "storageType": "cache_storage",
+            "usage": 0
+          },
+          {
+            "storageType": "service_workers",
+            "usage": 0
+          }
+        ]
+      },
+      "estimate": {
+        "quota": 10737426561,
+        "usage": 8321,
+        "usageDetails": {
+          "indexedDB": 8321
+        }
+      }
+    },
+    "caught": "QuotaExceededError",
+    "head": 0,
+    "hotBytes": 8388608,
+    "retained": true,
+    "failedAbsent": true,
+    "previous": 4096,
+    "quotaBytes": 1048576,
+    "attemptedBytes": 8388608
+  }
+}
