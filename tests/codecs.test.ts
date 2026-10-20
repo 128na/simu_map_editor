@@ -30,7 +30,7 @@ test('PPM does not consume a whitespace-valued first pixel after the header',asy
 test('oversized PNG dimensions reject before attempting decompression',async()=>{
   const header=Buffer.alloc(13);header.writeUInt32BE(1000000);header.writeUInt32BE(1000000,4);header[8]=8;
   const bytes=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header)]);
-  await assert.rejects(decodeHeightmap(bytes,profile),/dimensions/);
+  await assert.rejects(decodeHeightmap(bytes,profile),/32,766/);
 });
 test('unsupported transparency, truncation, corrupt CRC and wrong PPM depth reject',async()=>{
   await assert.rejects(decodeHeightmap(pngFixture(3,5,4,false,true).bytes,profile),/半透明/);

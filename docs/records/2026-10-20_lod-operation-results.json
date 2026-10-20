@@ -1,0 +1,202 @@
+{
+  "size": 4096,
+  "browser": "chrome",
+  "browserVersion": "155.0.8059.85",
+  "playwrightVersion": "1.64.1",
+  "metadata": {
+    "schemaVersion": 1,
+    "benchmarkVersion": "browser-v2",
+    "recordedAt": "2026-10-20T13:54:00.648Z",
+    "revision": "d65679c57344dc7ef9198a70dd6d47ab1cbbaf67",
+    "repository": null,
+    "runId": null,
+    "runAttempt": null,
+    "runUrl": null,
+    "workflow": null,
+    "environment": {
+      "node": "v26.4.0",
+      "os": "win32",
+      "arch": "x64",
+      "cpu": "12th Gen Intel(R) Core(TM) i9-12900F",
+      "runnerOS": null,
+      "runnerName": null
+    }
+  },
+  "conditions": {
+    "map": "flat",
+    "radius": 8,
+    "amount": 1,
+    "warmup": 0,
+    "trials": 3,
+    "profile": {
+      "mode": "linear",
+      "min": -12,
+      "max": 32,
+      "factor": 1,
+      "maxSlope": 1,
+      "seaLevel": -2
+    }
+  },
+  "createMs": 917,
+  "metrics": {
+    "displayStride": 4,
+    "displayTriangles": 2228224,
+    "chunkCount": 256,
+    "gridVisible": false,
+    "triangles": 33554432,
+    "geometryBytes": 70394880,
+    "waterTriangles": 0,
+    "drawCalls": 254,
+    "renderedTriangles": 2202112,
+    "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "webgl2": true
+  },
+  "strokes": {
+    "raise": [
+      {
+        "ms": 233.6999999997206,
+        "status": "造成完了: 197画素変更 / 履歴 1回（非同期保存）",
+        "timings": {
+          "coreMs": 214.1999999997206,
+          "gridMs": 10.100000000093132,
+          "quantizationAndWaterMs": 0.2999999998137355,
+          "geometryMs": 8,
+          "rebuildMs": 18.399999999906868
+        }
+      },
+      {
+        "ms": 41,
+        "status": "造成完了: 197画素変更 / 履歴 2回（非同期保存）",
+        "timings": {
+          "coreMs": 20.200000000186265,
+          "gridMs": 9.5,
+          "quantizationAndWaterMs": 0,
+          "geometryMs": 10.399999999906868,
+          "rebuildMs": 19.899999999906868
+        }
+      },
+      {
+        "ms": 36.200000000186265,
+        "status": "造成完了: 197画素変更 / 履歴 3回（非同期保存）",
+        "timings": {
+          "coreMs": 20.600000000093132,
+          "gridMs": 10.599999999627471,
+          "quantizationAndWaterMs": 0.10000000009313226,
+          "geometryMs": 3.5,
+          "rebuildMs": 14.199999999720603
+        }
+      }
+    ],
+    "lower": [
+      {
+        "ms": 37.700000000186265,
+        "status": "造成完了: 197画素変更 / 履歴 4回（非同期保存）",
+        "timings": {
+          "coreMs": 18.899999999906868,
+          "gridMs": 8.100000000093132,
+          "quantizationAndWaterMs": 0.09999999962747097,
+          "geometryMs": 10.200000000186265,
+          "rebuildMs": 18.399999999906868
+        }
+      },
+      {
+        "ms": 38.3000000002794,
+        "status": "造成完了: 197画素変更 / 履歴 5回（非同期保存）",
+        "timings": {
+          "coreMs": 22.399999999906868,
+          "gridMs": 10.799999999813735,
+          "quantizationAndWaterMs": 0,
+          "geometryMs": 3.5,
+          "rebuildMs": 14.299999999813735
+        }
+      },
+      {
+        "ms": 37.39999999990687,
+        "status": "造成完了: 197画素変更 / 履歴 6回（非同期保存）",
+        "timings": {
+          "coreMs": 21.399999999906868,
+          "gridMs": 11,
+          "quantizationAndWaterMs": 0,
+          "geometryMs": 3.7000000001862645,
+          "rebuildMs": 14.700000000186265
+        }
+      }
+    ],
+    "flatten": [
+      {
+        "ms": 43.700000000186265,
+        "status": "造成完了: 197画素変更 / 履歴 7回（非同期保存）",
+        "timings": {
+          "coreMs": 21.800000000279397,
+          "gridMs": 10.600000000093132,
+          "quantizationAndWaterMs": 0.09999999962747097,
+          "geometryMs": 10.5,
+          "rebuildMs": 21.199999999720603
+        }
+      },
+      {
+        "ms": 35.90000000037253,
+        "status": "造成完了: 197画素変更 / 履歴 8回（非同期保存）",
+        "timings": {
+          "coreMs": 22.300000000279397,
+          "gridMs": 9.799999999813735,
+          "quantizationAndWaterMs": 0.10000000009313226,
+          "geometryMs": 3.2000000001862645,
+          "rebuildMs": 13.100000000093132
+        }
+      },
+      {
+        "ms": 36.1999999997206,
+        "status": "造成完了: 197画素変更 / 履歴 9回（非同期保存）",
+        "timings": {
+          "coreMs": 22.199999999720603,
+          "gridMs": 9.700000000186265,
+          "quantizationAndWaterMs": 0.09999999962747097,
+          "geometryMs": 3.8000000002793968,
+          "rebuildMs": 13.600000000093132
+        }
+      }
+    ]
+  },
+  "undoMs": 933,
+  "redoMs": 837,
+  "dragMs": 722,
+  "dragInputPoints": 7,
+  "rotateMs": 198,
+  "frameIntervals": [
+    16.199999999720603,
+    17.200000000186265,
+    17.600000000093132,
+    15.799999999813735,
+    16.800000000279397,
+    16.59999999962747,
+    16.100000000093132,
+    17.399999999906868,
+    16.200000000186265,
+    16.799999999813735,
+    16.600000000093132,
+    16.700000000186265,
+    16.399999999906868,
+    16.899999999906868,
+    16.700000000186265,
+    16.5,
+    17,
+    16.199999999720603,
+    17,
+    16.90000000037253,
+    16.399999999906868,
+    16.699999999720603,
+    16.5,
+    16.800000000279397,
+    16.699999999720603,
+    17.200000000186265,
+    16.299999999813735,
+    16.800000000279397,
+    16.5
+  ],
+  "memory": {
+    "usedJSHeapSize": 218389853,
+    "totalJSHeapSize": 231929585,
+    "jsHeapSizeLimit": 4395630592
+  }
+}

@@ -2,9 +2,9 @@ export type Mode = 'linear' | 'clamp' | 'legacy-small' | 'legacy-large';
 export interface Profile { mode: Mode; min: number; max: number; factor: 1 | 2; maxSlope: 1 | 2; seaLevel: number }
 export interface Heightmap { width: number; height: number; heights: Float32Array }
 export const DEFAULT_PROFILE: Profile = { mode: 'linear', min: -12, max: 32, factor: 1, maxSlope: 1, seaLevel: -2 };
-export const LIMITS = { maxEdge: 4096, maxTiles: 16777216, maxFileBytes: 67108864 };
+export const LIMITS = { maxEdge: 32766, maxTiles: 67108864, maxFileBytes: 268435456, standardEdge:4096, standardTiles:16777216 };
 export function validateDimensions(w: number, h: number): void {
-  if (!Number.isSafeInteger(w) || !Number.isSafeInteger(h) || w < 1 || h < 1 || w > LIMITS.maxEdge || h > LIMITS.maxEdge || w * h > LIMITS.maxTiles) throw new Error('Unsupported map dimensions');
+  if (!Number.isSafeInteger(w) || !Number.isSafeInteger(h) || w < 1 || h < 1 || w > LIMITS.maxEdge || h > LIMITS.maxEdge || w * h > LIMITS.maxTiles) throw new Error('各辺1〜32,766の整数、合計67,108,864タイル以下で指定してください（総数はエディタの資源制約です）');
 }
 function profile(p: Profile): void {
   // Keep two upper sentinel/offset steps inside the native signed-byte range.

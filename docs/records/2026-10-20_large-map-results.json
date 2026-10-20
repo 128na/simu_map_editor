@@ -1,0 +1,66 @@
+{
+  "chrome": {
+    "createMs": 2794,
+    "editMs": 1394,
+    "undoMs": 2481,
+    "totalMs": 7357,
+    "metrics": {
+      "displayStride": 8,
+      "displayTriangles": 2359296,
+      "chunkCount": 1024,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 77893632,
+      "waterTriangles": 0,
+      "drawCalls": 999,
+      "renderedTriangles": 2299392,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    },
+    "detailMetrics": {
+      "displayStride": 8,
+      "displayTriangles": 2882560,
+      "chunkCount": 1024,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 93785088,
+      "waterTriangles": 0,
+      "drawCalls": 1001,
+      "renderedTriangles": 2822912,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    }
+  },
+  "edge": {
+    "createMs": 2620,
+    "editMs": 834,
+    "undoMs": 2400,
+    "totalMs": 6480,
+    "metrics": {
+      "displayStride": 8,
+      "displayTriangles": 2359296,
+      "chunkCount": 1024,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 77893632,
+      "waterTriangles": 0,
+      "drawCalls": 999,
+      "renderedTriangles": 2299392,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    },
+    "detailMetrics": {
+      "displayStride": 8,
+      "displayTriangles": 2882560,
+      "chunkCount": 1024,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 93785088,
+      "waterTriangles": 0,
+      "drawCalls": 1001,
+      "renderedTriangles": 2822912,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    }
+  }
+}

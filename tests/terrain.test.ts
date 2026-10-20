@@ -92,8 +92,8 @@ test('empty and zero-strength strokes preserve steep unnormalized source data', 
   }
 });
 test('resource and malformed input limits reject before allocating terrain', () => {
-  for (const [w, h] of [[0, 1], [1.1, 2], [4097, 1], [NaN, 2]]) assert.throws(() => validateDimensions(w, h));
-  validateDimensions(4096, 4096); validateDimensions(2048, 2048); validateDimensions(1024, 1024); validateDimensions(4096, 256);
+  for (const [w, h] of [[0, 1], [1.1, 2], [32767, 1], [NaN, 2]]) assert.throws(() => validateDimensions(w, h));
+  validateDimensions(8192,8192);assert.throws(()=>validateDimensions(8193,8192));validateDimensions(4096, 4096); validateDimensions(2048, 2048); validateDimensions(1024, 1024); validateDimensions(4096, 256);
   const invalid = map(2, 2); invalid.heights[0] = NaN;
   assert.throws(() => encodeSamples(invalid, P));
   assert.throws(() => toGrid(map(2, 2), { ...P, max: 200 }));

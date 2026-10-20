@@ -150,8 +150,9 @@ test('raise lower flatten at boundaries export the same grid as native reload',a
 
 test('unrepresentable heights are reported before and during BMP export',async({page})=>{
   await page.locator('#mode').selectOption('clamp');
-  await page.evaluate(()=>(window as any).__validation.setMap({width:8,height:8,heights:new Float32Array(64).fill(20)}));
   await page.locator('#mode').selectOption('legacy-small');
+  // Validation-only raw input exercises the export guard independently of UI normalization.
+  await page.evaluate(()=>(window as any).__validation.setMap({width:8,height:8,heights:new Float32Array(64).fill(20)}));
   await expect(page.locator('#quantization')).toHaveClass(/warning/);
   await expect(page.locator('#quantization')).toContainText('到達範囲外 64');
   await expect(page.locator('#quantization')).toContainText('到達標高 -12〜9');
@@ -252,7 +253,7 @@ test('new map dimensions create a flat editable exportable terrain and invalid s
   expect(fresh.grid.every((h:number)=>h===1)).toBe(true);
   expect([fresh.undoCount,fresh.redoCount]).toEqual([0,0]);
   await expect(page.locator('#undo')).toBeDisabled();
-  for(const [w,h] of [['0','19'],['2.5','19'],['4097','1'],['4096','4097'],['','19']]){
+  for(const [w,h] of [['0','19'],['2.5','19'],['32767','1'],['8193','8192'],['','19']]){
     await page.locator('#newWidth').fill(w);await page.locator('#newHeight').fill(h);await page.locator('#create').click();
     await expect(page.locator('#status')).toHaveClass(/error/);expect(await snapshot()).toEqual(fresh);
   }
@@ -280,7 +281,7 @@ test('4096-square flat map can be created and rendered at the expanded limit',as
     return {metrics:api.getMetrics(),render:await api.renderSample(3)};
   });
   expect(result.metrics.triangles).toBe(4096*4096*2);
-  expect(result.metrics.renderedTriangles).toBeGreaterThanOrEqual(4096*4096*2);
+  expect(result.metrics.displayStride).toBe(4);expect(result.metrics.geometryBytes).toBeLessThan(128*1048576);expect(result.metrics.renderedTriangles).toBeLessThan(4096*4096*2);
   writeFileSync(join(output,`large-map-${info.project.name}.json`),JSON.stringify({elapsedMs:Date.now()-started,...result},null,2));
   await page.screenshot({path:join(output,`large-map-${info.project.name}.png`)});
 });
@@ -313,15 +314,15 @@ test('import correction warning can be canceled and normalized source exports wi
 });
 
 test('exported PNG matches native Simutrans grid for all supported profiles',async({page},info)=>{
- for(const mode of modes)for(const factor of [1,2])for(const maxSlope of [1,2]){
-  const profile={mode,min:-12,max:32,factor,maxSlope,seaLevel:-2};
+ for(const [min,max] of [[-12,32],[-40,60],[-127,125]])for(const mode of modes)for(const factor of [1,2])for(const maxSlope of [1,2]){
+  const profile={mode,min,max,factor,maxSlope,seaLevel:-2};
   const result=await page.evaluate(async profile=>{
    const c='/src/codecs.ts',t='/src/terrain.ts';const codec=await import(c),terrain=await import(t);
    const source={width:7,height:5,heights:Float32Array.from({length:35},(_,i)=>(i%7-Math.floor(i/7))*2-7)};
    const map=terrain.normalizeImport(source,profile).map;const bytes=await codec.exportPng(map,profile);
    return {bytes:Array.from(bytes),grid:Array.from(terrain.toGrid(map,profile))};
   },profile);
-  const path=join(output,`png-export-${info.project.name}-${mode}-${factor}-${maxSlope}.png`);writeFileSync(path,Uint8Array.from(result.bytes));
+  const path=join(output,`png-export-${info.project.name}-${mode}-${factor}-${maxSlope}-${min}-${max}.png`);writeFileSync(path,Uint8Array.from(result.bytes));
   expect(native(path,profile).grid).toEqual(result.grid);
  }
 });

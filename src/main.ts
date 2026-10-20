@@ -4,11 +4,13 @@ import { DEFAULT_PROFILE, decodeSample, toGrid, applyBrush, applyBrushIncrementa
 import { importHeightmap, exportBmp, exportPng } from './codecs';
 import { createWaterMesh } from './water';
 import { intersectTerrain } from './picking';
-import { terrainGeometry } from './terrain-geometry';
+import { TerrainSurface } from './terrain-surface';
 import { patchGrid, waterChanged } from './grid-patch';
 import { AsyncHistory, createPatch, HistoryBudgetError, type HistoryOptions, type HistoryStore } from './history';
 import { BrowserHistoryStore } from './history-store';
 import { addTileGrid } from './grid-material';
+import { COMPATIBILITY_TARGET, PROFILE_PRESETS, encodingKey, validateEditorProfile } from './compatibility';
+import { largeMapWarning } from './resources';
 import { editorLayout } from './editor-layout';
 import { loadPreferences, savePreferences } from './preferences';
 import './style.css';
@@ -29,9 +31,9 @@ let hoverScreen:{clientX:number;clientY:number}|null=null;
 let history:AsyncHistory;
 let historyPaused=false,waitingForDrain=false,memoryHistory=false;
 let historyFault:{putDelayMs?:number;readDelayMs?:number;failPut?:boolean;failRead?:boolean}={};
-let revisionSerial=0,revisions=[0],savedRevision=0;
+let revisionSerial=0,revisions=[0],savedRevision=0,savedEncoding=encodingKey(profile);
 const revision=()=>revisions[history?.getState().undoCount??0];
-const hasUnsavedChanges=()=>revision()!==savedRevision;
+const hasUnsavedChanges=()=>revision()!==savedRevision||encodingKey(profile)!==savedEncoding;
 const readBudget=(key:string,allowed:number[],fallback:number)=>{try{const value=Number(localStorage.getItem(key));return allowed.includes(value)?value:fallback;}catch{return fallback;}};
 let ramBudgetMiB=readBudget('simu-history-ram-mib',[16,64,256],64),diskBudgetMiB=readBudget('simu-history-disk-mib',[128,512,1024],512);
 let historyOptions:HistoryOptions={ramBudgetBytes:ramBudgetMiB*1048576,diskBudgetBytes:diskBudgetMiB*1048576,maxEntries:1000};
@@ -47,7 +49,7 @@ catch(error) { status(`WebGL2を初期化できません。ブラウザのGPU設
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));viewport.prepend(renderer.domElement);
 const controls = new OrbitControls(camera,renderer.domElement);controls.mouseButtons={LEFT:null as unknown as THREE.MOUSE,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};controls.enableDamping=true;controls.maxPolarAngle=Math.PI*.49;
 scene.add(new THREE.HemisphereLight(0xe4f2ed,0x364b35,2));const sun=new THREE.DirectionalLight(0xfff4d9,2.5);sun.position.set(-100,200,100);scene.add(sun);
-let terrain: THREE.Mesh<THREE.BufferGeometry,THREE.MeshStandardMaterial>|undefined;
+let terrain:TerrainSurface|undefined;
 let water: THREE.Mesh<THREE.BufferGeometry,THREE.MeshStandardMaterial>|undefined;
 const indicator=new THREE.Mesh(new THREE.RingGeometry(.94,1,64),new THREE.MeshBasicMaterial({color:0xffedb3,side:THREE.DoubleSide,depthTest:false,transparent:true,opacity:.9}));indicator.rotation.x=-Math.PI/2;indicator.renderOrder=10;indicator.visible=false;scene.add(indicator);
 let geometryBytes=0;
@@ -101,15 +103,14 @@ function rebuild(next=map,nextProfile=profile,edit?:Edit){
  const nextQuantization=patch?{changed:0,outsideRange:0,fractional:0,reachableMin:decodeSample(0,nextProfile),reachableMax:decodeSample(255,nextProfile)}:quantizationReport(next,nextProfile);
  // Validate water allocation before mutating the visible terrain buffers.
  const nextWater=patch&&water&&!waterChanged(grid,nextGrid,w,h,nextProfile.seaLevel,patch.dirty)?water:createWaterMesh(nextGrid,w,h,nextProfile.seaLevel);const waterDone=performance.now();
- let geometry:THREE.BufferGeometry;
- try{geometry=terrainGeometry(nextGrid,w,h,nextProfile.seaLevel,terrain?.geometry,grid,profile.seaLevel,patch?.dirty);}
- catch(error){if(nextWater!==water){nextWater.geometry.dispose();nextWater.material.dispose();}throw error;}
- if(terrain&&terrain.geometry!==geometry){scene.remove(terrain);terrain.geometry.dispose();terrain.material.dispose();terrain=undefined;}
- if(!terrain){const material=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1});addTileGrid(material,gridEnabled,gridOffset);terrain=new THREE.Mesh(geometry,material);scene.add(terrain);}
+ try{
+  if(!terrain){const material=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1});addTileGrid(material,gridEnabled,gridOffset);const nextTerrain=new TerrainSurface(material);try{nextTerrain.update(nextGrid,w,h,nextProfile.seaLevel);}catch(error){material.dispose();throw error;}terrain=nextTerrain;scene.add(terrain);}
+  else terrain.update(nextGrid,w,h,nextProfile.seaLevel,patch?.dirty);
+ }catch(error){if(nextWater!==water){nextWater.geometry.dispose();nextWater.material.dispose();}throw error;}
  if(water&&water!==nextWater){scene.remove(water);water.geometry.dispose();water.material.dispose();}
  water=nextWater;addTileGrid(water.material,gridEnabled,gridOffset);scene.add(water);map=next;profile=nextProfile;grid=nextGrid;gridOffset.value.set(w/2,h/2);if(hoverScreen)cursorReadout(pick(hoverScreen));quantization=nextQuantization;el('quantization').textContent=quantizationText();el('quantization').classList.toggle('warning',quantization.outsideRange>0);
- geometryBytes=geometry.getIndex()!.array.byteLength+Object.values(geometry.attributes).reduce((sum,attribute)=>sum+attribute.array.byteLength,0)+Object.values(nextWater.geometry.attributes).reduce((sum,attribute)=>sum+attribute.array.byteLength,0);
- el('metrics').textContent=`${w} × ${h}タイル / ${(w+1)} × ${(h+1)}頂点\n${(w*h*2).toLocaleString()}三角形 / メッシュ ${(geometryBytes/1048576).toFixed(1)} MiB（CPU配列のみ）`;
+ geometryBytes=terrain.metrics.geometryBytes+Object.values(nextWater.geometry.attributes).reduce((sum,attribute)=>sum+attribute.array.byteLength,0);
+ el('metrics').textContent=`${w} × ${h}タイル / ${(w+1)} × ${(h+1)}頂点\n${(w*h*2).toLocaleString()}三角形（元データ） / 表示間隔 ${terrain.metrics.stride}タイル / ${terrain.metrics.chunkCount}分割 / メッシュ ${(geometryBytes/1048576).toFixed(1)} MiB（CPU配列のみ）`;
  lastTimings={...lastTimings,gridMs:gridDone-start,quantizationAndWaterMs:waterDone-gridDone,geometryMs:performance.now()-waterDone,rebuildMs:performance.now()-start};
  historyButtons();
 }
@@ -131,26 +132,28 @@ function setBusy(value:boolean){busy=value;document.querySelectorAll<HTMLButtonE
 el('create').addEventListener('click',()=>{
  try{
   const width=Number(input('newWidth').value),height=Number(input('newHeight').value);
-  try{validateDimensions(width,height);}catch{throw new Error('幅・高さは1〜4,096の整数、合計16,777,216タイル以下で指定してください');}
-  if(!confirm('現在の地形とUndo/Redo履歴を置き換えて新規作成しますか？'))return;
+  validateDimensions(width,height);
+  if(!confirm(largeMapWarning(width,height)+'現在の地形とUndo/Redo履歴を置き換えて新規作成しますか？'))return;
   setMap({width,height,heights:new Float32Array(width*height)});
   documentName='新規マップ';exportName='simutrans-heightmap.bmp';
   indicator.visible=false;el('dragHeight').textContent='開始点で決定';
   status(`${width} × ${height}タイルの平坦な地形を新規作成しました`);
  }catch(error){status(String(error),true);}
 });
+class ImportCancelled extends Error{}
 input('file').addEventListener('change',async()=>{
  const file=input('file').files?.[0];if(!file)return;
  setBusy(true);status('画像を読み込んでいます…');
  try{
-  const result=normalizeImport(await importHeightmap(file,profile),profile);
+  const decoded=await importHeightmap(file,profile,(w,h)=>{const warning=largeMapWarning(w,h);if(warning&&!confirm(warning+'この画像の取り込みを続行しますか？'))throw new ImportCancelled('画像の読み込みを取り消しました。現在の地形と履歴を保持しています');});
+  const result=normalizeImport(decoded,profile);
   const warning=result.changed?`補正: ${result.changed.toLocaleString()}画素変更。書出標高への量子化 ${result.quantization.changed.toLocaleString()}画素（範囲外 ${result.quantization.outsideRange.toLocaleString()} / 小数 ${result.quantization.fractional.toLocaleString()}）、斜面補正 ${result.slopeChanged.toLocaleString()}画素。各項目は重複する場合があります。補正済みの地形で編集します。`: '補正はありません。';
   if(!confirm(`${file.name}（${result.map.width} × ${result.map.height}タイル）を開きます。\n${warning}\n現在の地形とUndo/Redo履歴を置き換えますか？`)){status('画像の読み込みを取り消しました。現在の地形と履歴を保持しています');return;}
   setMap(result.map);
   documentName=file.name;exportName=file.name.replace(/\.[^.]+$/,'')+'.bmp';
-  if(!result.changed)savedRevision=revision();
+  if(!result.changed){savedRevision=revision();savedEncoding=encodingKey(profile);}
   status(`${file.name} を読み込みました。${warning}${result.changed?' 保存するにはBMPを書き出してください。':''}`);
- }catch(error){status(String(error),true);}
+ }catch(error){status(String(error),!(error instanceof ImportCancelled));}
  finally{setBusy(false);input('file').value='';}
 });
 async function downloadMap(format:'bmp'|'png'){
@@ -160,7 +163,7 @@ async function downloadMap(format:'bmp'|'png'){
  try{
   const bytes=format==='png'?await exportPng(source,compatibility):exportBmp(source,compatibility);
   const url=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:`image/${format}`}));
-  try{const anchor=document.createElement('a');anchor.href=url;anchor.download=exportName.replace(/\.[^.]+$/,`.${format}`);anchor.click();savedRevision=exportedRevision;}
+  try{const anchor=document.createElement('a');anchor.href=url;anchor.download=exportName.replace(/\.[^.]+$/,`.${format}`);anchor.click();savedRevision=exportedRevision;savedEncoding=encodingKey(compatibility);}
   finally{setTimeout(()=>URL.revokeObjectURL(url),10000);}
   status(`${format.toUpperCase()}を書き出しました。${quantizationText()} 互換設定を合わせて確認してください。`);
  }catch(error){status(String(error),true);}
@@ -190,7 +193,32 @@ for(const id of ['historyRam','historyDisk'])el(id).addEventListener('change',()
  historyButtons();status('履歴予算を更新しました');
 });
 window.addEventListener('beforeunload',event=>{if(hasUnsavedChanges()){event.preventDefault();event.returnValue='';}});
-for(const id of ['mode','factor','maxSlope','seaLevel']){input(id).value=String(profile[id as keyof Profile]);el(id).addEventListener('change',()=>{const previous=profile;try{const sea=Number(input('seaLevel').value);if(!Number.isFinite(sea)||sea<-12||sea>32)throw new Error('海面は−12〜32で指定してください');const nextProfile:Profile={...profile,mode:el<HTMLSelectElement>('mode').value as Profile['mode'],factor:Number(input('factor').value) as 1|2,maxSlope:Number(input('maxSlope').value) as 1|2,seaLevel:sea};if((history.getState().undoCount||history.getState().redoCount||history.getState().queuedBytes)&&!confirm('互換設定を変更するとUndo/Redo履歴を破棄します。現在の標高を保持して続行しますか？')){input(id).value=String(previous[id as keyof Profile]);return;}rebuild(map,nextProfile);resetHistory();status('互換設定を更新しました（編集標高は維持）');}catch(error){profile=previous;input(id).value=String(profile[id as keyof Profile]);status(String(error),true);}});}
+const profileFields=['mode','factor','maxSlope','seaLevel','min','max'] as const;
+el('compatibilityTarget').textContent=`${COMPATIBILITY_TARGET.name} / ${COMPATIBILITY_TARGET.revision.slice(0,9)}`;
+el('profilePreset').innerHTML='<option value="custom">カスタム</option>'+PROFILE_PRESETS.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+function syncProfile(){
+ for(const id of profileFields)input(id).value=String(profile[id]);
+ input('seaLevel').min=profile.maxSlope===2?'-40':'-20';
+ el<HTMLSelectElement>('profilePreset').value=PROFILE_PRESETS.find(p=>profileFields.every(key=>p.profile[key]===profile[key]))?.id??'custom';
+}
+function changeProfile(next:Profile){
+ try{
+  validateEditorProfile(next);
+  if(profileFields.every(key=>next[key]===profile[key]))return;
+  const result=normalizeImport(map,next);
+  const structural=profileFields.some(key=>key!=='seaLevel'&&next[key]!==profile[key]);
+  const clearHistory=structural||result.changed>0,wasDirty=hasUnsavedChanges();
+  const details=result.changed?`標高を${result.changed.toLocaleString()}画素補正し、Undo/Redo履歴を破棄します。`:structural?'標高は保持し、変更前の設定で登録したUndo/Redo履歴を破棄します。':'標高とUndo/Redo履歴を保持します。';
+  if(!confirm(`互換設定を変更しますか？\n${details}\n画像には設定が含まれません。ゲーム側にも同じ設定を指定してください。`))return;
+  rebuild(result.changed?result.map:map,next);
+  if(clearHistory){resetHistory();if(!wasDirty&&!result.changed)savedRevision=revision();}
+  status(`互換設定を更新しました。${details}${hasUnsavedChanges()?' 保存するには画像を書き出してください。':''}`);
+ }catch(error){status(String(error),true);}
+ finally{syncProfile();}
+}
+syncProfile();
+for(const id of profileFields)el(id).addEventListener('change',()=>changeProfile({mode:el<HTMLSelectElement>('mode').value as Profile['mode'],factor:Number(input('factor').value) as 1|2,maxSlope:Number(input('maxSlope').value) as 1|2,seaLevel:Number(input('seaLevel').value),min:Number(input('min').value),max:Number(input('max').value)}));
+el('profilePreset').addEventListener('change',()=>{const preset=PROFILE_PRESETS.find(p=>p.id===input('profilePreset').value);if(preset)changeProfile({...preset.profile});});
 input('gridToggle').checked=preferences.grid??false;
 input('gridToggle').addEventListener('change',()=>{gridEnabled.value=input('gridToggle').checked;preferences.grid=gridEnabled.value;savePreferences(preferences);});
 for(const id of ['tool','radius','amount'] as const){
@@ -244,9 +272,10 @@ function paintPointer(event:{clientX:number;clientY:number},candidate=map):Heigh
  indicator.visible=!!point&&(!busy||!!gesture);
  if(!point){if(gesture){gesture.last=null;stopHold();}return candidate;}
  indicator.position.copy(point);indicator.position.y+=.2;indicator.scale.setScalar(Number(input('radius').value));
- if(!gesture)return candidate;
+ if(!gesture){terrain?.focus(point.x+map.width/2,point.z+map.height/2,Number(input('radius').value));return candidate;}
  if(repeated&&gesture.last&&gesture.options.tool==='smooth')return candidate;
  const at={x:point.x+map.width/2,y:point.z+map.height/2};
+ terrain?.focus(at.x,at.y,Number(input('radius').value));
  return paintAt(at,candidate);
 }
 function paintAt(at:Point,candidate:Heightmap):Heightmap{
@@ -325,4 +354,4 @@ window.addEventListener('blur',()=>finishGesture(true));
 window.addEventListener('keydown',event=>{if(event.key==='Escape')finishGesture(true);});
 new ResizeObserver(()=>{const width=viewport.clientWidth,height=viewport.clientHeight;renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();}).observe(viewport);
 function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}rebuild();view();animate();status('128 × 128タイルの平坦な地形で開始しました。サイズを指定して新規作成するか、マップ画像を開いてください。');
-if(new URLSearchParams(location.search).has('validate')){const gl=renderer.getContext();const debug=gl.getExtension('WEBGL_debug_renderer_info');Object.assign(window,{__validation:{getHistoryState:()=>({...history.getState(),paused:historyPaused,memoryOnly:memoryHistory,dirty:hasUnsavedChanges()}),waitHistory:()=>history.settled(),setHistoryFault:(fault:typeof historyFault)=>{historyFault={...fault};},configureHistory:(options:HistoryOptions)=>{if(history.getState().reading||gesture)throw new Error('History is busy');const old=history;historyOptions={...historyOptions,...options};memoryHistory=false;history=makeHistory();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];void old.dispose().catch(()=>{});historyButtons();},getTimings:()=>({...lastTimings}),projectSample:(x:number,y:number)=>{camera.updateMatrixWorld();const xi=Math.max(0,Math.min(map.width,Math.round(x))),yi=Math.max(0,Math.min(map.height,Math.round(y)));const v=new THREE.Vector3(x-map.width/2,grid[xi+yi*(map.width+1)],y-map.height/2).project(camera);const r=renderer.domElement.getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},getSnapshot:()=>({width:map.width,height:map.height,heights:Array.from(map.heights),grid:Array.from(grid),profile:{...profile},undoCount:history.getState().undoCount,redoCount:history.getState().redoCount}),setMap,stroke,getMetrics:()=>({gridVisible:gridEnabled.value,triangles:map.width*map.height*2,geometryBytes,waterTriangles:water?(water.geometry.getIndex()?.count??water.geometry.getAttribute('position').count)/3:0,drawCalls:renderer.info.render.calls,renderedTriangles:renderer.info.render.triangles,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),webgl2:gl instanceof WebGL2RenderingContext}),renderSample:async(frames=20)=>{const times:number[]=[];for(let i=0;i<frames;i++){await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return{frameMedianMs:times[Math.floor(times.length*.5)],frameP95Ms:times[Math.min(times.length-1,Math.floor(times.length*.95))]};}}});}
+if(new URLSearchParams(location.search).has('validate')){const gl=renderer.getContext();const debug=gl.getExtension('WEBGL_debug_renderer_info');Object.assign(window,{__validation:{getHistoryState:()=>({...history.getState(),paused:historyPaused,memoryOnly:memoryHistory,dirty:hasUnsavedChanges()}),waitHistory:()=>history.settled(),setHistoryFault:(fault:typeof historyFault)=>{historyFault={...fault};},configureHistory:(options:HistoryOptions)=>{if(history.getState().reading||gesture)throw new Error('History is busy');const old=history;historyOptions={...historyOptions,...options};memoryHistory=false;history=makeHistory();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];void old.dispose().catch(()=>{});historyButtons();},getTimings:()=>({...lastTimings}),projectSample:(x:number,y:number)=>{camera.updateMatrixWorld();const xi=Math.max(0,Math.min(map.width,Math.round(x))),yi=Math.max(0,Math.min(map.height,Math.round(y)));const v=new THREE.Vector3(x-map.width/2,grid[xi+yi*(map.width+1)],y-map.height/2).project(camera);const r=renderer.domElement.getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},getSnapshot:()=>({width:map.width,height:map.height,heights:Array.from(map.heights),grid:Array.from(grid),profile:{...profile},undoCount:history.getState().undoCount,redoCount:history.getState().redoCount}),setMap,stroke,getMetrics:()=>({displayStride:terrain?.metrics.stride,displayTriangles:terrain?.metrics.triangles,chunkCount:terrain?.metrics.chunkCount,gridVisible:gridEnabled.value,triangles:map.width*map.height*2,geometryBytes:(terrain?.metrics.geometryBytes??0)+(water?Object.values(water.geometry.attributes).reduce((sum,a)=>sum+a.array.byteLength,0):0),waterTriangles:water?(water.geometry.getIndex()?.count??water.geometry.getAttribute('position').count)/3:0,drawCalls:renderer.info.render.calls,renderedTriangles:renderer.info.render.triangles,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),webgl2:gl instanceof WebGL2RenderingContext}),renderSample:async(frames=20)=>{const times:number[]=[];for(let i=0;i<frames;i++){await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return{frameMedianMs:times[Math.floor(times.length*.5)],frameP95Ms:times[Math.min(times.length-1,Math.floor(times.length*.95))]};}}});}
