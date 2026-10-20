@@ -8,7 +8,7 @@ import './style.css';
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <header><div><h1>Simutrans / 地形検証</h1><p>画像 → 標高 → 斜面補正 → 3D表示 → BMP書出の試作</p></div><small>ローカルファイルのみ・バックエンドなし</small></header>
 <main><aside>
-<section><h2>01　ファイル</h2><div class="row"><label>幅（タイル）<input id="newWidth" type="number" min="1" max="4096" step="1" value="128"></label><label>高さ（タイル）<input id="newHeight" type="number" min="1" max="4096" step="1" value="128"></label></div><button id="create" style="width:100%">指定サイズで新規作成</button><small>表示標高1の平坦な地形で開始。現在の地形とUndo履歴を置き換えます。</small><label class="file">マップ画像を開く<input id="file" type="file" accept=".bmp,.png,.ppm"></label><button id="export" style="width:100%">BMPを書き出す</button><small id="quantization"></small><small>上限: 1,048,576画素 / 各辺4,096<br>水面メッシュ上限16 MiB。入力エラー時も現在の地形を保持します。</small></section>
+<section><h2>01　ファイル</h2><div class="row"><label>幅（タイル）<input id="newWidth" type="number" min="1" max="4096" step="1" value="128"></label><label>高さ（タイル）<input id="newHeight" type="number" min="1" max="4096" step="1" value="128"></label></div><button id="create" style="width:100%">指定サイズで新規作成</button><small>表示標高1の平坦な地形で開始。現在の地形とUndo履歴を置き換えます。</small><label class="file">マップ画像を開く<input id="file" type="file" accept=".bmp,.png,.ppm"></label><button id="export" style="width:100%">BMPを書き出す</button><small id="quantization"></small><small>上限: 16,777,216画素 / 各辺4,096<br>水面メッシュ上限16 MiB。入力エラー時も現在の地形を保持します。</small></section>
 <section><h2>02　造成</h2><label>ツール<select id="tool"><option value="raise">盛り上げる</option><option value="lower">掘り下げる</option><option value="flatten">平坦化</option></select></label><label>ブラシ半径 <span id="radiusValue">8</span><input id="radius" type="range" min="1" max="40" value="8"></label><label>強さ<input id="amount" type="number" min="1" max="8" step="1" value="1"></label><label>ドラッグの固定標高<output id="dragHeight">開始点で決定</output></label><div class="row"><button id="undo">元に戻す</button><button id="redo">やり直す</button></div><small>左ドラッグで連続造成。盛土・掘削は押し始めの高さ±強さ、平坦化は押し始めの高さで固定。右ドラッグで回転、ホイールでズーム。補正はブラシ外へ波及します。</small></section>
 <section><h2>03　互換設定</h2><label>高さ変換<select id="mode"><option value="linear">Linear</option><option value="clamp">Clamp</option><option value="legacy-small">Legacy small</option><option value="legacy-large">Legacy large</option></select></label><div class="row"><label>高さ係数<select id="factor"><option value="1">1</option><option value="2">2</option></select></label><label>最大斜面<select id="maxSlope"><option value="1">1段</option><option value="2">2段</option></select></label></div><label>海面<input id="seaLevel" type="number" min="-12" max="32" value="0"></label><small>変換範囲: −12〜32<br>設定変更は取り込み済みの編集標高を維持。Undo履歴はリセットします。</small></section>
 <section><h2>04　表示</h2><div class="row"><button id="top">真上</button><button id="oblique">斜め</button></div><small id="metrics"></small></section>
@@ -62,7 +62,7 @@ function setBusy(value:boolean){busy=value;document.querySelectorAll<HTMLButtonE
 el('create').addEventListener('click',()=>{
  try{
   const width=Number(input('newWidth').value),height=Number(input('newHeight').value);
-  try{validateDimensions(width,height);}catch{throw new Error('幅・高さは1〜4,096の整数、合計1,048,576タイル以下で指定してください');}
+  try{validateDimensions(width,height);}catch{throw new Error('幅・高さは1〜4,096の整数、合計16,777,216タイル以下で指定してください');}
   setMap({width,height,heights:new Float32Array(width*height)});
   indicator.visible=false;el('dragHeight').textContent='開始点で決定';
   status(`${width} × ${height}タイルの平坦な地形を新規作成しました`);

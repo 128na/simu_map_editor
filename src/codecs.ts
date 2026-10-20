@@ -177,7 +177,7 @@ function ppmSamples(data: Uint8Array): {width: number; height: number; samples: 
   return {width,height,samples};
 }
 export async function decodeHeightmap(data: Uint8Array, profile: Profile): Promise<Heightmap> {
-  if(data.length>LIMITS.maxFileBytes) throw new Error('画像ファイルは16 MiB以下にしてください');
+  if(data.length>LIMITS.maxFileBytes) throw new Error('画像ファイルは64 MiB以下にしてください');
   let image: {width:number;height:number;samples:Uint8Array};
   if(data[0]===137 && data[1]===80 && data[2]===78 && data[3]===71 && data[4]===13 && data[5]===10 && data[6]===26 && data[7]===10) image=await pngSamples(data);
   else if(data[0]===66 && data[1]===77) image=bmpSamples(data);
@@ -186,7 +186,7 @@ export async function decodeHeightmap(data: Uint8Array, profile: Profile): Promi
   return mapFromSamples(image.width,image.height,image.samples,profile);
 }
 export async function importHeightmap(file: File, profile: Profile): Promise<Heightmap> {
-  if(file.size>LIMITS.maxFileBytes) throw new Error('画像ファイルは16 MiB以下にしてください');
+  if(file.size>LIMITS.maxFileBytes) throw new Error('画像ファイルは64 MiB以下にしてください');
   return decodeHeightmap(new Uint8Array(await file.arrayBuffer()),profile);
 }
 export function exportBmp(map: Heightmap, profile: Profile): Uint8Array {

@@ -2,7 +2,7 @@ export type Mode = 'linear' | 'clamp' | 'legacy-small' | 'legacy-large';
 export interface Profile { mode: Mode; min: number; max: number; factor: 1 | 2; maxSlope: 1 | 2; seaLevel: number }
 export interface Heightmap { width: number; height: number; heights: Float32Array }
 export const DEFAULT_PROFILE: Profile = { mode: 'linear', min: -12, max: 32, factor: 1, maxSlope: 1, seaLevel: -2 };
-export const LIMITS = { maxEdge: 4096, maxTiles: 1048576, maxFileBytes: 16777216 };
+export const LIMITS = { maxEdge: 4096, maxTiles: 16777216, maxFileBytes: 67108864 };
 export function validateDimensions(w: number, h: number): void {
   if (!Number.isSafeInteger(w) || !Number.isSafeInteger(h) || w < 1 || h < 1 || w > LIMITS.maxEdge || h > LIMITS.maxEdge || w * h > LIMITS.maxTiles) throw new Error('Unsupported map dimensions');
 }

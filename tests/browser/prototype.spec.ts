@@ -248,7 +248,7 @@ test('new map dimensions create a flat editable exportable terrain and invalid s
   expect(fresh.grid.every((h:number)=>h===1)).toBe(true);
   expect([fresh.undoCount,fresh.redoCount]).toEqual([0,0]);
   await expect(page.locator('#undo')).toBeDisabled();
-  for(const [w,h] of [['0','19'],['2.5','19'],['4097','1'],['1025','1024'],['','19']]){
+  for(const [w,h] of [['0','19'],['2.5','19'],['4097','1'],['4096','4097'],['','19']]){
     await page.locator('#newWidth').fill(w);await page.locator('#newHeight').fill(h);await page.locator('#create').click();
     await expect(page.locator('#status')).toHaveClass(/error/);expect(await snapshot()).toEqual(fresh);
   }
@@ -262,4 +262,21 @@ test('new map dimensions create a flat editable exportable terrain and invalid s
   await page.locator('#newWidth').fill('1');await page.locator('#newHeight').fill('1');await page.locator('#create').click();
   const tiny=await snapshot();expect([tiny.width,tiny.height,tiny.grid.length,tiny.undoCount]).toEqual([1,1,4,0]);
   await page.screenshot({path:join(output,`new-map-ui-${info.project.name}.png`),fullPage:true});
+});
+
+
+test('4096-square flat map can be created and rendered at the expanded limit',async({page},info)=>{
+  test.skip(!process.env.VALIDATE_LARGE_MAP,'Explicit large-memory validation');
+  test.setTimeout(180000);
+  await page.locator('#newWidth').fill('4096');await page.locator('#newHeight').fill('4096');
+  const started=Date.now();await page.locator('#create').click({timeout:150000});
+  await expect(page.locator('#status')).toContainText('4096 × 4096',{timeout:150000});
+  const result=await page.evaluate(async()=>{
+    const api=(window as any).__validation;
+    return {metrics:api.getMetrics(),render:await api.renderSample(3)};
+  });
+  expect(result.metrics.triangles).toBe(4096*4096*2);
+  expect(result.metrics.renderedTriangles).toBeGreaterThanOrEqual(4096*4096*2);
+  writeFileSync(join(output,`large-map-${info.project.name}.json`),JSON.stringify({elapsedMs:Date.now()-started,...result},null,2));
+  await page.screenshot({path:join(output,`large-map-${info.project.name}.png`)});
 });
