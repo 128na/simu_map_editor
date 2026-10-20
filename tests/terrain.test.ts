@@ -1,3 +1,4 @@
+import {createBrushSession} from '../src/terrain.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeImport, applyBrushIncremental, applyBrush, decodeSample, DEFAULT_PROFILE as P, encodeSamples, toGrid, validateDimensions } from '../src/terrain.ts';
@@ -304,4 +305,49 @@ test('render-grid legality cache rejects distant fractional and steep sources ou
   assert.equal(actual.incremental,index===0);
   assert.deepEqual(actual.map.heights,applyBrush(original,P,brush).map.heights);
  }
+});
+
+
+test('gesture-owned edits match immutable brushes, reuse working storage and seal at finish',()=>{
+ for(const maxSlope of [1,2] as const)for(const tool of ['raise','lower','flatten','smooth'] as const){
+  const p={...P,maxSlope},original=map(131,127);
+  for(let y=0;y<127;y++)for(let x=0;x<131;x++)original.heights[y*131+x]=Math.min(3,x,130-x,y,126-y);
+  const saved=original.heights.slice(),session=createBrushSession(original,p);
+  let reference=original,buffer:Float32Array|undefined,from:{x:number;y:number}|undefined;
+  for(const [x,y] of [[0,0],[14,19],[120,110],[130,126],[60,55]]){
+   const brush={x,y,from,radius:3,amount:3,tool,...(tool==='flatten'?{target:-2}:{})};
+   const expected=applyBrushIncremental(reference,p,brush),actual=session.apply(brush);
+   assert.equal(actual.changed,expected.changed);
+   assert.deepEqual(actual.changedIndices,expected.changedIndices);
+   assert.deepEqual(actual.bounds,expected.bounds);
+   assert.deepEqual(actual.map.heights,expected.map.heights);
+   assert.deepEqual(original.heights,saved);
+   if(actual.changed){if(buffer)assert.equal(actual.map.heights,buffer);buffer=actual.map.heights;}
+   reference=expected.map;from={x,y};
+  }
+  const finished=session.finish();
+  assert.deepEqual(finished.heights,reference.heights);
+  assert.throws(()=>session.apply({x:1,y:1,radius:1,amount:1,tool:'raise'}),/closed/);
+  const stable=finished.heights.slice();
+  applyBrushIncremental(finished,p,{x:10,y:10,radius:1,amount:1,tool:'lower'});
+  assert.deepEqual(finished.heights,stable);
+ }
+});
+
+test('gesture validation failure preserves its working map and source',()=>{
+ const original=map(128,128),session=createBrushSession(original,P);
+ const first=session.apply({x:20,y:20,radius:3,amount:2,tool:'raise'}),saved=first.map.heights.slice();
+ assert.throws(()=>session.apply({x:NaN,y:20,radius:3,amount:2,tool:'raise'}));
+ assert.deepEqual(session.finish().heights,saved);
+ assert.ok(original.heights.every(v=>v===0));
+});
+
+
+test('gesture no-op remains lazy before its first owned edit',()=>{
+ const original=map(128,128),session=createBrushSession(original,P);
+ assert.equal(session.apply({x:20,y:20,radius:2,amount:1,tool:'flatten',target:0}).map,original);
+ const edited=session.apply({x:20,y:20,radius:2,amount:1,tool:'raise'});
+ assert.notEqual(edited.map.heights,original.heights);
+ assert.ok(original.heights.every(v=>v===0));
+ assert.equal(session.finish(),edited.map);
 });

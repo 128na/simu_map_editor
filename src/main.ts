@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DEFAULT_PROFILE, decodeSample, toGrid, applyBrush, applyBrushIncremental, type DirtyBounds, quantizationReport, normalizeImport, validateDimensions, type Heightmap, type Profile } from './terrain';
+import { DEFAULT_PROFILE, decodeSample, toGrid, applyBrush, applyBrushIncremental, createBrushSession, type DirtyBounds, quantizationReport, normalizeImport, validateDimensions, type Heightmap, type Profile } from './terrain';
 import { importHeightmap, exportBmp, exportPng } from './codecs';
 import { createWaterMesh } from './water';
 import { intersectTerrain } from './picking';
 import { TerrainSurface } from './terrain-surface';
-import { patchGrid, waterChanged } from './grid-patch';
+import { prepareGridPatch } from './grid-patch';
 import { AsyncHistory, createPatch, HistoryBudgetError, type HistoryOptions, type HistoryStore } from './history';
 import { BrowserHistoryStore } from './history-store';
 import { addTileGrid } from './grid-material';
@@ -102,15 +102,19 @@ type Edit={incremental:boolean;bounds:DirtyBounds|null};
 function rebuild(next=map,nextProfile=profile,edit?:Edit){
  const start=performance.now();
  const w=next.width,h=next.height;
- const patch=edit?.incremental&&edit.bounds&&nextProfile===profile&&w===map.width&&h===map.height?patchGrid(grid,next,edit.bounds):null;
+ const patch=edit?.incremental&&edit.bounds&&nextProfile===profile&&w===map.width&&h===map.height?prepareGridPatch(grid,next,edit.bounds):null;
+ const retainWater=patch&&water&&!patch.changesWater(nextProfile.seaLevel);
+ patch?.apply();
  const nextGrid=patch?patch.grid:toGrid(next,nextProfile);const gridDone=performance.now();
  const nextQuantization=patch?{changed:0,outsideRange:0,fractional:0,reachableMin:decodeSample(0,nextProfile),reachableMax:decodeSample(255,nextProfile)}:quantizationReport(next,nextProfile);
  // Validate water allocation before mutating the visible terrain buffers.
- const nextWater=patch&&water&&!waterChanged(grid,nextGrid,w,h,nextProfile.seaLevel,patch.dirty)?water:createWaterMesh(nextGrid,w,h,nextProfile.seaLevel);const waterDone=performance.now();
+ let nextWater:NonNullable<typeof water>;
+ try{nextWater=retainWater?water!:createWaterMesh(nextGrid,w,h,nextProfile.seaLevel);}catch(error){patch?.rollback();throw error;}
+ const waterDone=performance.now();
  try{
   if(!terrain){const material=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1});addTileGrid(material,gridEnabled,gridOffset);const nextTerrain=new TerrainSurface(material);try{nextTerrain.update(nextGrid,w,h,nextProfile.seaLevel);}catch(error){material.dispose();throw error;}terrain=nextTerrain;scene.add(terrain);}
   else terrain.update(nextGrid,w,h,nextProfile.seaLevel,patch?.dirty);
- }catch(error){if(nextWater!==water){nextWater.geometry.dispose();nextWater.material.dispose();}throw error;}
+ }catch(error){patch?.rollback();if(nextWater!==water){nextWater!.geometry.dispose();nextWater!.material.dispose();}throw error;}
  if(water&&water!==nextWater){scene.remove(water);water.geometry.dispose();water.material.dispose();}
  water=nextWater;addTileGrid(water.material,gridEnabled,gridOffset);scene.add(water);map=next;profile=nextProfile;grid=nextGrid;gridOffset.value.set(w/2,h/2);if(hoverScreen)cursorReadout(pick(hoverScreen));quantization=nextQuantization;el('quantization').textContent=quantizationText();el('quantization').classList.toggle('warning',quantization.outsideRange>0);
  geometryBytes=terrain.metrics.geometryBytes+Object.values(nextWater.geometry.attributes).reduce((sum,attribute)=>sum+attribute.array.byteLength,0);
@@ -238,7 +242,7 @@ input('radius').addEventListener('input',()=>{el('radiusValue').textContent=inpu
 const raycaster=new THREE.Raycaster();
 const pointer=new THREE.Vector2();
 type Point={x:number;y:number};
-type Gesture={id:number;before:Heightmap;last:Point|null;options:Stroke;changed:Set<number>;screen:{clientX:number;clientY:number};at:Point};
+type Gesture={id:number;before:Heightmap;session:ReturnType<typeof createBrushSession>;last:Point|null;options:Stroke;changed:Set<number>;screen:{clientX:number;clientY:number};at:Point};
 let gesture:Gesture|null=null;
 let pendingPointers:{clientX:number;clientY:number}[]=[];
 let paintFrame=0;
@@ -286,7 +290,7 @@ function paintAt(at:Point,candidate:Heightmap):Heightmap{
  if(!gesture)return candidate;
  gesture.at=at;
  const coreStarted=performance.now();
- const result=applyBrushIncremental(candidate,profile,{...gesture.options,...at,from:gesture.last??undefined});
+ const result=gesture.session.apply({...gesture.options,...at,from:gesture.last??undefined});
  batchCoreMs+=performance.now()-coreStarted;
  if(result.changed){
   for(const index of result.changedIndices)gesture.changed.add(index);
@@ -310,7 +314,7 @@ function flushPointers(){
 function finishGesture(cancel=false){
  if(!gesture)return;
  stopHold();
- const completed=gesture;gesture=null;
+ const completed=gesture;completed.session.finish();gesture=null;
  cancelAnimationFrame(paintFrame);paintFrame=0;pendingPointers=[];
  try{
   if(cancel){rebuild(completed.before);status('ドラッグ造成を取り消しました');}
@@ -333,7 +337,7 @@ renderer.domElement.addEventListener('pointerdown',event=>{
  const delta=options.tool==='raise'?Math.round(options.amount):options.tool==='lower'?-Math.round(options.amount):0;
  if(options.tool!=='smooth')options.target=Math.max(decodeSample(0,profile),Math.min(decodeSample(255,profile),height+delta));
  el('dragHeight').textContent=options.target===undefined?'平滑化':String(options.target+1);
- gesture={id:event.pointerId,before:map,last:null,options,changed:new Set<number>(),screen:{clientX:event.clientX,clientY:event.clientY},at};
+ gesture={id:event.pointerId,before:map,session:createBrushSession(map,profile),last:null,options,changed:new Set<number>(),screen:{clientX:event.clientX,clientY:event.clientY},at};
  controls.enabled=false;setBusy(true);renderer.domElement.setPointerCapture(event.pointerId);
  try{const started=performance.now();batchCoreMs=0;pendingEdit=null;const next=paintPointer(event);if(next!==map){rebuild(next,profile,pendingEdit??undefined);recordInteraction('start',started,1);}status(options.tool==='smooth'?'平滑化中（離すと1操作として確定）':`ドラッグ造成中: 表示標高 ${(options.target??0)+1} に固定（静止長押しで連続増減）`);scheduleHold();}
  catch(error){finishGesture(true);status(String(error),true);}

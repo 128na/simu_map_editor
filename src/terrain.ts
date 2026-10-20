@@ -214,6 +214,25 @@ function isLegal(map: Heightmap, p: Profile, key: string): boolean {
 }
 /** Exact local equivalent of applyBrush for immutable, normalized source maps. */
 export function applyBrushIncremental(map: Heightmap, p: Profile, brush: Brush): IncrementalBrushResult {
+  return editBrush(map,p,brush,false);
+}
+
+/** A gesture owns its working array after its first edit. Results are transient
+ * views until finish(); only the original and finished map are immutable. */
+export function createBrushSession(original:Heightmap,p:Profile){
+  const settings={...p};
+  let current=original,owned=false,closed=false;
+  return {
+    apply(brush:Brush):IncrementalBrushResult {
+      if(closed)throw new Error('Brush session is closed');
+      const result=editBrush(current,settings,brush,owned);
+      if(result.changed){current=result.map;owned=true;}
+      return result;
+    },
+    finish():Heightmap {closed=true;return current;}
+  };
+}
+function editBrush(map:Heightmap,p:Profile,brush:Brush,owned:boolean):IncrementalBrushResult {
   const key = profileKey(p);
   const incremental = isLegal(map, p, key);
   if (!incremental) {
@@ -247,7 +266,7 @@ export function applyBrushIncremental(map: Heightmap, p: Profile, brush: Brush):
   for (let y = 0; y < height; y++) local.set(map.heights.subarray((y + y0) * map.width + x0, (y + y0) * map.width + x0 + width), y * width);
   const result = applyBrush({ width, height, heights: local }, p, { ...brush, x: brush.x - x0, y: brush.y - y0, ...(brush.from ? { from: { x: from.x - x0, y: from.y - y0 } } : {}) });
   if (result.changed === 0) return { map, changed: 0, changedIndices: new Uint32Array(0), bounds: null, incremental };
-  const heights = map.heights.slice(), indices: number[] = [];
+  const heights = owned?map.heights:map.heights.slice(), indices: number[] = [];
   let bounds: DirtyBounds | null = null;
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     const localIndex = y * width + x, i = (y + y0) * map.width + x + x0;
@@ -258,6 +277,8 @@ export function applyBrushIncremental(map: Heightmap, p: Profile, brush: Brush):
       else { bounds.x0 = Math.min(bounds.x0, gx); bounds.y0 = Math.min(bounds.y0, gy); bounds.x1 = Math.max(bounds.x1, gx); bounds.y1 = Math.max(bounds.y1, gy); }
     }
   }
+  // Retire the transient wrapper before publishing its updated owned buffer.
+  if(owned)legalMaps.delete(map);
   const next = { width: map.width, height: map.height, heights };
   rememberLegal(next, key);
   return { map: next, changed: indices.length, changedIndices: Uint32Array.from(indices), bounds, incremental };

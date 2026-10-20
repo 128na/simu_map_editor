@@ -39,3 +39,20 @@ test('cursor reads grid coordinates and height, grid changes rendering without c
  expect((await page.evaluate(()=>(window as any).__validation.getMetrics())).gridVisible).toBe(true);
  await page.reload();await expect(page.locator('#gridToggle')).toBeChecked();expect(errors).toEqual([]);
 });
+
+
+test('multi-update drag keeps its path, cancels exactly and rolls back a rejected history entry',async({page})=>{
+ const original=await snapshot(page);
+ const points=await Promise.all([point(page,5,8),point(page,16,8),point(page,16,25)]);
+ await page.mouse.move(points[0].x,points[0].y);await page.mouse.down();
+ for(const at of points.slice(1)){await page.mouse.move(at.x,at.y,{steps:4});await page.waitForTimeout(40);}
+ const transient=await snapshot(page);
+ expect(transient.heights[8*33+10]).toBe(1);expect(transient.heights[20*33+16]).toBe(1);
+ await page.keyboard.press('Escape');await page.mouse.up();
+ const cancelled=await snapshot(page);expect(cancelled.heights).toEqual(original.heights);expect(cancelled.grid).toEqual(original.grid);expect(cancelled.undoCount).toBe(0);
+ await page.evaluate(()=>(window as any).__validation.configureHistory({ramBudgetBytes:1,diskBudgetBytes:1048576}));
+ await page.mouse.move(points[0].x,points[0].y);await page.mouse.down();
+ for(const at of points.slice(1)){await page.mouse.move(at.x,at.y,{steps:4});await page.waitForTimeout(40);}
+ await page.mouse.up();await expect(page.locator('#status')).toContainText('変更前へ戻しました');
+ const rejected=await snapshot(page);expect(rejected.heights).toEqual(original.heights);expect(rejected.grid).toEqual(original.grid);expect(rejected.undoCount).toBe(0);
+});
