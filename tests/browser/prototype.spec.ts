@@ -234,3 +234,32 @@ test('excessively intricate water refuses allocation without replacing the curre
   expect(error).toContain('16');
   const after=await page.evaluate(()=>(window as any).__validation.getSnapshot());expect(after.heights).toEqual(before.heights);expect(after.grid).toEqual(before.grid);expect(after.width).toBe(before.width);
 });
+
+
+test('new map dimensions create a flat editable exportable terrain and invalid sizes preserve it',async({page},info)=>{
+  const snapshot=()=>page.evaluate(()=>(window as any).__validation.getSnapshot());
+  await page.evaluate(()=>(window as any).__validation.stroke({x:64,y:64,radius:2,amount:1,tool:'raise'}));
+  await page.locator('#newWidth').fill('37');await page.locator('#newHeight').fill('19');
+  await page.locator('#create').click();
+  await expect(page.locator('#status')).toContainText('37 × 19');
+  const fresh=await snapshot();
+  expect([fresh.width,fresh.height,fresh.heights.length,fresh.grid.length]).toEqual([37,19,37*19,38*20]);
+  expect(fresh.heights.every((h:number)=>h===0)).toBe(true);
+  expect(fresh.grid.every((h:number)=>h===1)).toBe(true);
+  expect([fresh.undoCount,fresh.redoCount]).toEqual([0,0]);
+  await expect(page.locator('#undo')).toBeDisabled();
+  for(const [w,h] of [['0','19'],['2.5','19'],['4097','1'],['1025','1024'],['','19']]){
+    await page.locator('#newWidth').fill(w);await page.locator('#newHeight').fill(h);await page.locator('#create').click();
+    await expect(page.locator('#status')).toHaveClass(/error/);expect(await snapshot()).toEqual(fresh);
+  }
+  await page.locator('#top').click();await page.waitForTimeout(150);
+  const at=await page.evaluate(()=>(window as any).__validation.projectSample(18,9));
+  await page.mouse.click(at.x,at.y);await expect(page.locator('#status')).toContainText('造成完了');
+  const edited=await snapshot();expect(edited.undoCount).toBe(1);expect(edited.heights).not.toEqual(fresh.heights);
+  const pending=page.waitForEvent('download');await page.locator('#export').click();const download=await pending;
+  const path=join(output,`new-map-${info.project.name}.bmp`);await download.saveAs(path);
+  expect(native(path,edited.profile).grid).toEqual(edited.grid);
+  await page.locator('#newWidth').fill('1');await page.locator('#newHeight').fill('1');await page.locator('#create').click();
+  const tiny=await snapshot();expect([tiny.width,tiny.height,tiny.grid.length,tiny.undoCount]).toEqual([1,1,4,0]);
+  await page.screenshot({path:join(output,`new-map-ui-${info.project.name}.png`),fullPage:true});
+});
