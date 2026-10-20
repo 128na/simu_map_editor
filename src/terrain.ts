@@ -92,6 +92,20 @@ function baseline(map: Heightmap, p: Profile): Float32Array {
   envelope(values, map.width, map.height, p.maxSlope, true);
   return values;
 }
+/** Normalize editable W×H source heights; display's +1 offset is not stored. */
+export function normalizeImport(map: Heightmap, p: Profile) {
+  const quantization = quantizationReport(map, p);
+  const samples = encodeSamples(map, p);
+  const table = Array.from({length:256}, (_, v) => decodeSample(v, p));
+  const heights = Float32Array.from(samples, v => table[v]);
+  envelope(heights, map.width, map.height, p.maxSlope, true);
+  let changed = 0, slopeChanged = 0;
+  for (let i = 0; i < heights.length; i++) {
+    if (heights[i] !== map.heights[i]) changed++;
+    if (heights[i] !== table[samples[i]]) slopeChanged++;
+  }
+  return { map: {width:map.width, height:map.height, heights}, changed, slopeChanged, quantization };
+}
 export function toGrid(map: Heightmap, p: Profile): Int16Array {
   const samples = encodeSamples(map, p), w = map.width + 1, h = map.height + 1;
   const grid = new Float32Array(w * h), table=Array.from({length:256},(_,v)=>decodeSample(v,p));

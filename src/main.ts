@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DEFAULT_PROFILE, decodeSample, toGrid, applyBrush, applyBrushIncremental, type DirtyBounds, quantizationReport, validateDimensions, type Heightmap, type Profile } from './terrain';
+import { DEFAULT_PROFILE, decodeSample, toGrid, applyBrush, applyBrushIncremental, type DirtyBounds, quantizationReport, normalizeImport, validateDimensions, type Heightmap, type Profile } from './terrain';
 import { importHeightmap, exportBmp } from './codecs';
 import { createWaterMesh } from './water';
 import { intersectTerrain } from './picking';
@@ -133,7 +133,19 @@ el('create').addEventListener('click',()=>{
   status(`${width} × ${height}タイルの平坦な地形を新規作成しました`);
  }catch(error){status(String(error),true);}
 });
-input('file').addEventListener('change',async()=>{const file=input('file').files?.[0];if(!file)return;setBusy(true);status('画像を読み込んでいます…');try{const next=await importHeightmap(file,profile);if(!confirm('現在の地形とUndo/Redo履歴を置き換えてマップを開きますか？'))return;setMap(next);savedRevision=revision();status(`${file.name} を読み込みました`);}catch(error){status(String(error),true);}finally{setBusy(false);input('file').value='';}});
+input('file').addEventListener('change',async()=>{
+ const file=input('file').files?.[0];if(!file)return;
+ setBusy(true);status('画像を読み込んでいます…');
+ try{
+  const result=normalizeImport(await importHeightmap(file,profile),profile);
+  const warning=result.changed?`補正: ${result.changed.toLocaleString()}画素変更。書出標高への量子化 ${result.quantization.changed.toLocaleString()}画素（範囲外 ${result.quantization.outsideRange.toLocaleString()} / 小数 ${result.quantization.fractional.toLocaleString()}）、斜面補正 ${result.slopeChanged.toLocaleString()}画素。各項目は重複する場合があります。補正済みの地形で編集します。`: '補正はありません。';
+  if(!confirm(`${file.name}（${result.map.width} × ${result.map.height}タイル）を開きます。\n${warning}\n現在の地形とUndo/Redo履歴を置き換えますか？`)){status('画像の読み込みを取り消しました。現在の地形と履歴を保持しています');return;}
+  setMap(result.map);
+  if(!result.changed)savedRevision=revision();
+  status(`${file.name} を読み込みました。${warning}${result.changed?' 保存するにはBMPを書き出してください。':''}`);
+ }catch(error){status(String(error),true);}
+ finally{setBusy(false);input('file').value='';}
+});
 el('export').addEventListener('click',()=>{try{const bytes=exportBmp(map,profile);const url=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:'image/bmp'}));const anchor=document.createElement('a');anchor.href=url;anchor.download='simutrans-heightmap.bmp';anchor.click();savedRevision=revision();setTimeout(()=>URL.revokeObjectURL(url),10000);status(`BMPを書き出しました。${quantizationText()} 互換設定を合わせて確認してください。`);}catch(error){status(String(error),true);}});
 async function moveHistory(redo=false){
  if(busy||history.getState().reading)return;

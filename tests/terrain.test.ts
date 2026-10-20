@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyBrushIncremental, applyBrush, decodeSample, DEFAULT_PROFILE as P, encodeSamples, toGrid, validateDimensions } from '../src/terrain.ts';
+import { normalizeImport, applyBrushIncremental, applyBrush, decodeSample, DEFAULT_PROFILE as P, encodeSamples, toGrid, validateDimensions } from '../src/terrain.ts';
 import type { Heightmap, Mode } from '../src/terrain.ts';
 const map = (w: number, h: number, v = 0): Heightmap => ({ width: w, height: h, heights: new Float32Array(w * h).fill(v) });
 function constrained(m: Heightmap, slope = 1) {
@@ -223,4 +223,20 @@ test('incremental halo contains maximum-height cones at crop boundaries for lega
       assert.deepEqual(toGrid(actual.map, p), toGrid(expected.map, p));
     }
   }
+});
+
+test('import normalization reports stages, preserves input and is stable on rectangular maps', () => {
+  const input = {width:3,height:2,heights:Float32Array.from([-99,0.5,6,0,0,99])};
+  const original = input.heights.slice();
+  const p = {...P,mode:'clamp' as const};
+  const result = normalizeImport(input,p);
+  assert.deepEqual(input.heights,original);
+  assert.equal(result.quantization.outsideRange,2);
+  assert.equal(result.quantization.fractional,1);
+  assert.equal(result.quantization.changed,3);
+  assert.equal(result.slopeChanged,5);
+  assert.equal(result.changed,6);
+  assert.deepEqual([...result.map.heights],[30,31,31,30,31,32]);
+  assert.equal(normalizeImport(result.map,p).changed,0);
+  assert.deepEqual([...toGrid(result.map,p)],[31,32,32,32,31,32,33,33,31,32,33,33]);
 });

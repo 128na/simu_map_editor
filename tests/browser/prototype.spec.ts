@@ -30,12 +30,15 @@ test('browser codecs and terrain match real Simutrans loader and normalization',
         const codecPath='/src/codecs.ts',terrainPath='/src/terrain.ts';
         const codec=await import(codecPath),terrain=await import(terrainPath);
         const map=await codec.decodeHeightmap(Uint8Array.from(bytes),profile);
-        const exported=codec.exportBmp(map,profile),again=await codec.decodeHeightmap(exported,profile);
-        return {heights:Array.from(map.heights),grid:Array.from(terrain.toGrid(map,profile)),again:Array.from(terrain.toGrid(again,profile))};
+        const normalized=terrain.normalizeImport(map,profile).map;
+        const exported=codec.exportBmp(normalized,profile),again=await codec.decodeHeightmap(exported,profile);
+        return {heights:Array.from(map.heights),grid:Array.from(terrain.toGrid(map,profile)),again:Array.from(terrain.toGrid(again,profile)),normalizedGrid:Array.from(terrain.toGrid(normalized,profile)),normalizedHeights:Array.from(normalized.heights),normalizedAgain:terrain.normalizeImport(again,profile).changed};
       },{bytes:Array.from(bytes),profile});
       expect(actual.heights,fixture.name).toEqual(expected.decoded);
       expect(actual.grid,`${fixture.name}/${mode}/${factor}/${maxSlope}`).toEqual(expected.grid);
-      expect(actual.again,fixture.name+' roundtrip').toEqual(expected.grid);count++;
+      expect(actual.again,fixture.name+' normalized roundtrip').toEqual(actual.normalizedGrid);
+      expect(actual.normalizedAgain).toBe(0);
+      for(let y=0;y<expected.height;y++)for(let x=0;x<expected.width;x++)expect(actual.normalizedHeights[y*expected.width+x]).toBe(expected.grid[y*(expected.width+1)+x]-1);count++;
     }
   }
   // Metadata and all five filter types are intentionally decoded as raw sample values.
@@ -280,4 +283,31 @@ test('4096-square flat map can be created and rendered at the expanded limit',as
   expect(result.metrics.renderedTriangles).toBeGreaterThanOrEqual(4096*4096*2);
   writeFileSync(join(output,`large-map-${info.project.name}.json`),JSON.stringify({elapsedMs:Date.now()-started,...result},null,2));
   await page.screenshot({path:join(output,`large-map-${info.project.name}.png`)});
+});
+
+test('import correction warning can be canceled and normalized source exports without further correction',async({page},info)=>{
+  await page.locator('#mode').selectOption('clamp');
+  await page.evaluate(()=>{const a=(window as any).__validation;a.setMap({width:4,height:3,heights:new Float32Array(12)});a.stroke({x:1,y:1,radius:1,amount:1,tool:'raise'});});
+  const before=await page.evaluate(()=>(window as any).__validation.getSnapshot());
+  page.removeAllListeners('dialog');
+  let message='';page.once('dialog',async dialog=>{message=dialog.message();await dialog.dismiss();});
+  await page.locator('#file').setInputFiles(join(output,'fixtures','spike.png'));
+  await expect(page.locator('#status')).toContainText('取り消しました');
+  expect(message).toContain('斜面補正');expect(message).toContain('補正済み');
+  expect(await page.evaluate(()=>(window as any).__validation.getSnapshot())).toEqual(before);
+  expect(await page.evaluate(()=>(window as any).__validation.getHistoryState().dirty)).toBe(true);
+  page.on('dialog',dialog=>void dialog.accept());
+  await page.locator('#file').setInputFiles(join(output,'fixtures','spike.png'));
+  await expect(page.locator('#status')).toContainText('補正済み');
+  const corrected=await page.evaluate(()=>(window as any).__validation.getSnapshot());
+  expect(corrected.heights.filter((v:number)=>v>0).length).toBeGreaterThan(1);
+  expect(corrected.undoCount).toBe(0);
+  expect(await page.evaluate(()=>(window as any).__validation.getHistoryState().dirty)).toBe(true);
+  const pending=page.waitForEvent('download');await page.locator('#export').click();
+  const path=join(output,`normalized-${info.project.name}.bmp`);await(await pending).saveAs(path);
+  expect(native(path,corrected.profile).grid).toEqual(corrected.grid);
+  await page.locator('#file').setInputFiles(path);
+  await expect(page.locator('#status')).toContainText('補正はありません');
+  expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).grid).toEqual(corrected.grid);
+  expect(await page.evaluate(()=>(window as any).__validation.getHistoryState().dirty)).toBe(false);
 });
