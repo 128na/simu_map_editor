@@ -6,11 +6,14 @@ import {createPerformanceMetadata} from '../../tools/validation/performance-meta
 test.use({trace:'off'});
 test('continuous sculpting update latency 4096',async({page,browser},info)=>{
  test.skip(!process.env.VALIDATE_INTERACTION,'Explicit interactive latency measurement');test.setTimeout(180000);
+ const radius=Number(process.env.INTERACTION_RADIUS??8),amount=Number(process.env.INTERACTION_AMOUNT??1),tool=process.env.INTERACTION_TOOL??'raise';
+ if(!Number.isInteger(radius)||radius<1||radius>40||!Number.isInteger(amount)||amount<1||amount>8||!['raise','lower'].includes(tool))throw new Error('Invalid interaction brush');
  const baselineRef=process.env.INTERACTION_BASELINE_REF;const overrideCounts:Record<string,number>={};
  if(baselineRef){
   if(!/^[0-9a-f]{7,40}$/.test(baselineRef))throw new Error('Baseline must be a commit SHA');
-  for(const file of ['terrain-surface.ts','terrain.ts','grid-patch.ts']){
-   const original=execFileSync('git',['show',`${baselineRef}:src/${file}`],{encoding:'utf8'});
+  for(const file of ['terrain-surface.ts','terrain.ts','grid-patch.ts','water-surface.ts','water.ts']){
+   let original:string;
+   try{original=execFileSync('git',['show',`${baselineRef}:src/${file}`],{encoding:'utf8',stdio:['ignore','pipe','pipe']});}catch{throw new Error('Baseline module set is incompatible; measure that commit in its own checkout and retain the JSON before switching revisions');}
    if(file==='terrain.ts'&&!original.includes('export function createBrushSession(')||file==='grid-patch.ts'&&!original.includes('export function prepareGridPatch('))throw new Error('Baseline module API is incompatible; measure that commit in its own checkout and retain the JSON before switching revisions');
    const transformed=await transformWithOxc(original,`src/${file}`);
    await page.route(`**/src/${file}`,async route=>{
@@ -24,6 +27,7 @@ test('continuous sculpting update latency 4096',async({page,browser},info)=>{
  }
  page.on('dialog',d=>void d.accept());await page.goto('/?validate=1');await page.waitForFunction(()=>!!(window as any).__validation);
  await page.locator('#newWidth').fill('4096');await page.locator('#newHeight').fill('4096');await page.locator('#create').click();await expect(page.locator('#status')).toContainText('4096 × 4096');
+ await page.locator('#radius').fill(String(radius));await page.locator('#amount').fill(String(amount));await page.locator('#tool').selectOption(tool);
  await page.locator('#top').click();await page.waitForTimeout(150);
  const points=await page.evaluate(()=>Array.from({length:41},(_,i)=>(window as any).__validation.projectSample(2048-120+i*6,2048+32+Math.sin(i/8)*24)));
  await page.evaluate(()=>{(window as any).__validation.resetInteractionUpdates();const state={running:true,last:0,intervals:[] as number[]};(window as any).__interactionFrames=state;const sample=(time:number)=>{if(!state.running)return;if(state.last)state.intervals.push(time-state.last);state.last=time;requestAnimationFrame(sample);};requestAnimationFrame(sample);});
@@ -32,7 +36,7 @@ test('continuous sculpting update latency 4096',async({page,browser},info)=>{
  expect(result.history.undoCount).toBe(1);expect(result.updates.length).toBeGreaterThan(5);
  const moves=result.updates.filter((u:any)=>u.kind==='move'),sorted=moves.map((u:any)=>u.totalMs).sort((a:number,b:number)=>a-b);
  const summary={medianUpdateMs:sorted[Math.floor(sorted.length*.5)],p95UpdateMs:sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.95))],maxUpdateMs:sorted.at(-1),firstUpdateMs:result.updates[0].totalMs};
- if(baselineRef)for(const file of ['terrain-surface.ts','terrain.ts','grid-patch.ts'])expect(overrideCounts[file]).toBeGreaterThan(0);
- const report={metadata:createPerformanceMetadata('interaction-v1'),browser:info.project.name,browserVersion:browser.version(),size:4096,conditions:{trial:info.repeatEachIndex+1,overrideCounts,baselineRef:baselineRef??null,overrides:baselineRef?['terrain-surface.ts','terrain.ts','grid-patch.ts']:[]},inputPoints:points.length,elapsedMs:Date.now()-started,summary,...result};
- writeFileSync(`.validation/interaction-${baselineRef?`baseline-${baselineRef}-`:""}${info.project.name}-4096-trial-${info.repeatEachIndex+1}.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(summary));
+ if(baselineRef)for(const file of ['terrain-surface.ts','terrain.ts','grid-patch.ts','water-surface.ts','water.ts'])expect(overrideCounts[file]).toBeGreaterThan(0);
+ const report={metadata:createPerformanceMetadata('interaction-v1'),browser:info.project.name,browserVersion:browser.version(),size:4096,conditions:{radius,amount,tool,trial:info.repeatEachIndex+1,overrideCounts,baselineRef:baselineRef??null,overrides:baselineRef?['terrain-surface.ts','terrain.ts','grid-patch.ts','water-surface.ts','water.ts']:[]},inputPoints:points.length,elapsedMs:Date.now()-started,summary,...result};
+ writeFileSync(`.validation/interaction-${baselineRef?`baseline-${baselineRef}-`:""}${info.project.name}-4096-${tool}-r${radius}-a${amount}-trial-${info.repeatEachIndex+1}.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(summary));
 });

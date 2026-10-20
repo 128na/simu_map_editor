@@ -54,7 +54,7 @@ $env:VALIDATE_OPERATIONS='1'
 npm run test:browser -- --grep 'operation performance' --project chrome
 ```
 
-連続ドラッグ中の1更新ごとのCPU待ち時間は、`VALIDATE_INTERACTION=1` を設定して `npm run test:browser -- --grep 'continuous sculpting' --project chrome` で計測できます。`.validation/interaction-*.json` に初回・中央値・95%点と処理内訳を保存します。`--repeat-each 3` で試行を分け、`INTERACTION_BASELINE_REF` に比較元コミットSHAを指定すると、API互換のある旧版の地形処理・格子更新・描画モジュールを同じ画面操作で比較します。セッションAPI追加前のコミットは差替え対象にできません。APIが異なる版は、それぞれのチェックアウトで計測してJSONを保存・比較してください。これはローカルGPUでの応答計測で、操作全体の時間や見た目のfpsとは別の指標です。従来の操作計測JSONにも更新内訳を追加保存します。
+連続ドラッグ中の1更新ごとのCPU待ち時間は、`VALIDATE_INTERACTION=1` を設定して `npm run test:browser -- --grep 'continuous sculpting' --project chrome` で計測できます。`.validation/interaction-*.json` に初回・中央値・95%点と処理内訳を保存します。`--repeat-each 3` で試行を分け、`INTERACTION_BASELINE_REF` に比較元コミットSHAを指定すると、API互換のある旧版の地形処理・格子更新・地形描画・水面モジュールを同じ画面操作で比較します。セッションAPIや分割水面モジュール追加前のコミットは差替え対象にできません。APIが異なる版は、それぞれのチェックアウトで計測してJSONを保存・比較してください。これはローカルGPUでの応答計測で、操作全体の時間や見た目のfpsとは別の指標です。従来の操作計測JSONにも更新内訳を追加保存します。ブラシは `INTERACTION_RADIUS`（1〜40）、`INTERACTION_AMOUNT`（1〜8）、`INTERACTION_TOOL`（raise/lower）で変更でき、JSONに条件と水面処理の時間も保存します。例えば40・8・lowerは海岸線が変化する広い掘削の検証です。
 
 ローカルGPUで4096四方のドラッグ目標を検証する場合は、追加で `$env:DRAG_BUDGET_MS='1000'` を設定します。1秒の判定は指定時だけ有効です。標準は1024・2048・4096四方です。`PERF_SIZES` 環境変数でカンマ区切りのサイズを指定できます。GitHub Actionsの `browser-performance` は手動起動でサイズを選択し、Playwright Chromiumで計測します。通常ランナーの描画結果をローカルGPUの速度と直接比較しないでください。CIと同じ専用設定は `npx playwright install chromium` 後に `npm run benchmark:browser` で実行できます（`VALIDATE_OPERATIONS=1` が必要）。
 

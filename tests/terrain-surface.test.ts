@@ -19,9 +19,7 @@ test('chunk geometry covers rectangular odd boundaries and samples exact world g
    assert.equal(position.getY(i),grid[y*(w+1)+x]);
   }
   const index=geometry.getIndex()!;
-  const bounds=geometry.userData;
-  const horizontal=(bounds.y0>0?1:0)+(bounds.y1<h?1:0),vertical=(bounds.x0>0?1:0)+(bounds.x1<w?1:0);
-  assert.equal(index.count/3,geometry.userData.topTriangles+2*(horizontal*(bounds.x1-bounds.x0)+vertical*(bounds.y1-bounds.y0)));
+  assert.equal(index.count/3,geometry.userData.topTriangles);
  }
  assert.equal(topTriangles,w*h*2);assert.equal(samples.size,(w+1)*(h+1));assert.ok(samples.has('9,5'));
  surface.dispose();shared.dispose();
@@ -47,14 +45,14 @@ test('overview obeys cell budget while focus details at most four chunks and can
  const shared=material(),surface=new TerrainSurface(shared,{chunkSize:16,cellBudget:256}),w=65,h=49;
  const grid=new Int16Array((w+1)*(h+1));grid[17*(w+1)+17]=1;surface.update(grid,w,h,-2);
  const before=surface.metrics;assert.equal(before.stride,4);
- const top=()=>chunks(surface).reduce((sum,mesh)=>sum+mesh.geometry.userData.topTriangles/2,0);
+ const top=()=>chunks(surface).reduce((sum,mesh)=>sum+mesh.geometry.userData.regularCellCount,0);
  assert.ok(top()<=256);
  surface.focus(16,16,4);
  assert.equal(chunks(surface).filter(mesh=>mesh.geometry.userData.stride===1).length,4);assert.ok(top()<=256+4*16*16);
  assert.ok(surface.metrics.geometryBytes>before.geometryBytes);
  for(const mesh of chunks(surface)){
   const geometry=mesh.geometry,position=geometry.getAttribute('position');
-  for(let i=geometry.userData.topVertexCount+1;i<position.count;i+=2)assert.equal(position.getY(i),-256);
+  for(let i=0;i<position.count;i++)assert.ok(position.getY(i)>=0);
   for(const index of geometry.getIndex()!.array)assert.ok(index<position.count);
  }
 
@@ -87,37 +85,94 @@ test('a flat 128 map has no outside skirt or vertices below its actual height',(
  surface.dispose();shared.dispose();
 });
 
-test('all skirt faces lie on internal chunk boundaries rather than the map exterior',()=>{
- const shared=material(),surface=new TerrainSurface(shared,{chunkSize:4,cellBudget:8}),w=9,h=5;
- surface.update(new Int16Array((w+1)*(h+1)).fill(1),w,h,-2);surface.focus(4,4,1);
- let skirtCount=0;
+test('mixed LOD boundaries share exact one-tile edges with no downward walls',()=>{
+ const shared=material(),surface=new TerrainSurface(shared,{chunkSize:8,cellBudget:32}),w=25,h=17;
+ const grid=Int16Array.from({length:(w+1)*(h+1)},(_,i)=>((i%(w+1))+Math.floor(i/(w+1)))%5-2);
+ surface.update(grid,w,h,-2);surface.focus(3,3,0);
+ const boundary=(mesh:THREE.Mesh<THREE.BufferGeometry,THREE.MeshStandardMaterial>,x:number)=>{
+  const geometry=mesh.geometry,p=geometry.getAttribute('position'),edges=new Map<string,number>();
+  const index=geometry.getIndex()!.array;
+  for(let i=0;i<index.length;i+=3)for(const [a,b] of [[index[i],index[i+1]],[index[i+1],index[i+2]],[index[i+2],index[i]]]){
+   if(p.getX(a)+w/2!==x||p.getX(b)+w/2!==x)continue;
+   const y0=p.getZ(a)+h/2,y1=p.getZ(b)+h/2;
+   const key=[Math.min(y0,y1),Math.max(y0,y1)].join(',');edges.set(key,(edges.get(key)??0)+1);
+  }
+  return [...edges].filter(([,count])=>count===1).map(([key])=>key).sort();
+ };
+ const left=chunks(surface).find(m=>m.geometry.userData.x0===0&&m.geometry.userData.y0===0)!;
+ const right=chunks(surface).find(m=>m.geometry.userData.x0===8&&m.geometry.userData.y0===0)!;
+ assert.equal(left.geometry.userData.stride,1);assert.ok(right.geometry.userData.stride>1);
+ assert.deepEqual(boundary(left,8),boundary(right,8));assert.equal(boundary(right,8).length,8);
+ let area=0;
  for(const mesh of chunks(surface)){
-  const geometry=mesh.geometry,position=geometry.getAttribute('position'),normal=geometry.getAttribute('normal');
-  for(let i=geometry.userData.topVertexCount;i<position.count;i+=2){
-   const x=position.getX(i)+w/2,y=position.getZ(i)+h/2;skirtCount++;
-   if(normal.getX(i)!==0)assert.ok(x>0&&x<w);
-   if(normal.getZ(i)!==0)assert.ok(y>0&&y<h);
-   assert.equal(position.getY(i+1),-256);
+  const p=mesh.geometry.getAttribute('position'),index=mesh.geometry.getIndex()!.array;
+  for(let i=0;i<p.count;i++)assert.ok(p.getY(i)>=-2&&p.getY(i)<=2);
+  for(let i=0;i<index.length;i+=3){
+   const a=index[i],b=index[i+1],c=index[i+2];
+   const twice=(p.getZ(b)-p.getZ(a))*(p.getX(c)-p.getX(a))-(p.getX(b)-p.getX(a))*(p.getZ(c)-p.getZ(a));
+   assert.ok(twice>0,'Every triangle faces upward and has real terrain area');area+=twice/2;
   }
  }
- assert.ok(skirtCount>0);surface.dispose();shared.dispose();
+ assert.equal(area,w*h);surface.dispose();shared.dispose();
 });
 
-test('partial sampled heights colors normals and skirts equal a fresh full rebuild',()=>{
+test('partial sampled heights colors normals and seam vertices equal a fresh full rebuild',()=>{
  const shared=material(),surface=new TerrainSurface(shared,{chunkSize:8,cellBudget:64}),full=new TerrainSurface(shared,{chunkSize:8,cellBudget:64}),w=25,h=17;
  let grid=Int16Array.from({length:(w+1)*(h+1)},(_,i)=>(i*7)%13-6);
- surface.update(grid,w,h,-2);surface.focus(8,8,2);full.focus(8,8,2);
+ surface.update(grid,w,h,-2);surface.focus(8,8,2);full.update(grid,w,h,-2);full.focus(8,8,2);
  for(const [x,y] of [[8,8],[0,0],[w,h],[16,9],[11,4],[24,8]]){
   const next=grid.slice();next[y*(w+1)+x]+=2;
-  const previousGeometries=chunks(surface).map(mesh=>mesh.geometry);
-  surface.update(next,w,h,-2,{x0:x,y0:y,x1:x,y1:y});full.update(next,w,h,-2);
+  const previousGeometries=chunks(surface).map(mesh=>mesh.geometry),previousStrides=chunks(surface).map(mesh=>mesh.geometry.userData.stride);
+  surface.update(next,w,h,-2,{x0:x,y0:y,x1:x,y1:y});full.update(next,w,h,-2,{x0:x,y0:y,x1:x,y1:y});full.update(next,w,h,-2);
   for(let i=0;i<surface.children.length;i++){
    const actual=chunks(surface)[i].geometry,expected=chunks(full)[i].geometry;
-   assert.equal(actual,previousGeometries[i]);
+   if(actual.userData.stride===previousStrides[i])assert.equal(actual,previousGeometries[i]);
    for(const name of ['position','color','normal'])assert.deepEqual(actual.getAttribute(name).array,expected.getAttribute(name).array,`${name}/${x}/${y}/${i}`);
    assert.deepEqual(actual.getIndex()!.array,expected.getIndex()!.array);
   }
   grid=next;
  }
  surface.dispose();full.dispose();shared.dispose();
+});
+
+
+test('recently edited chunks remain detailed after cursor departure within a bounded LRU',()=>{
+ const shared=material(),surface=new TerrainSurface(shared,{chunkSize:8,cellBudget:64}),w=129,h=17;
+ let grid=new Int16Array((w+1)*(h+1));surface.update(grid,w,h,-2);
+ for(let chunk=0;chunk<15;chunk++){
+  const x=chunk*8+2,y=2,next=grid.slice();next[y*(w+1)+x]=1;
+  surface.focus(x,y,1);surface.update(next,w,h,-2,{x0:x,y0:y,x1:x,y1:y});grid=next;
+ }
+ surface.focus(128,16,1);surface.clearFocus();
+ assert.equal(surface.metrics.retainedDetailCount,12);assert.ok(surface.metrics.detailedChunkCount<=16);
+ assert.equal(chunks(surface).find(m=>m.geometry.userData.x0===14*8&&m.geometry.userData.y0===0)!.geometry.userData.stride,1);
+ assert.equal(chunks(surface).find(m=>m.geometry.userData.x0===0&&m.geometry.userData.y0===0)!.geometry.userData.stride,surface.metrics.stride);
+ surface.update(new Int16Array(25),4,4,-2);assert.equal(surface.metrics.retainedDetailCount,0);
+ surface.dispose();shared.dispose();
+});
+
+
+test('coarse seam centers patch exactly when a broad edit exceeds retained detail capacity',()=>{
+ const shared=material(),options={chunkSize:8,cellBudget:64},surface=new TerrainSurface(shared,options),full=new TerrainSurface(shared,options),w=65,h=33;
+ const grid=Int16Array.from({length:(w+1)*(h+1)},(_,i)=>i%7-3),next=Int16Array.from(grid,z=>z+2),dirty={x0:0,y0:0,x1:w,y1:h};
+ surface.update(grid,w,h,-2);full.update(grid,w,h,-2);
+ const before=chunks(surface).map(m=>m.geometry);
+ surface.update(next,w,h,-2,dirty);full.update(next,w,h,-2,dirty);full.update(next,w,h,-2);
+ assert.equal(surface.metrics.retainedDetailCount,12);let patchedCoarse=0,fractional=false;
+ for(let i=0;i<surface.children.length;i++){
+  const actual=chunks(surface)[i].geometry,expected=chunks(full)[i].geometry;
+  if(actual.userData.stride>1){assert.equal(actual,before[i]);patchedCoarse++;if(actual.userData.extra.some((v:number)=>!Number.isInteger(v)))fractional=true;}
+  for(const name of ['position','color','normal'])assert.deepEqual(actual.getAttribute(name).array,expected.getAttribute(name).array,`${name}/${i}`);
+ }
+ assert.ok(patchedCoarse>0);assert.ok(fractional);
+ surface.dispose();full.dispose();shared.dispose();
+});
+
+test('failed retained-detail promotion leaves existing geometry and LRU unchanged',()=>{
+ const shared=material(),surface=new TerrainSurface(shared,{chunkSize:8,cellBudget:64}),w=65,h=33,grid=new Int16Array((w+1)*(h+1));
+ surface.update(grid,w,h,-2);const before=chunks(surface).map(m=>m.geometry),metrics=surface.metrics;
+ const original=(surface as any).geometry;(surface as any).geometry=()=>{throw new Error('allocation rejected');};
+ assert.throws(()=>surface.update(grid,w,h,-2,{x0:2,y0:2,x1:2,y1:2}),/allocation rejected/);
+ assert.deepEqual(chunks(surface).map(m=>m.geometry),before);assert.deepEqual(surface.metrics,metrics);
+ (surface as any).geometry=original;surface.dispose();shared.dispose();
 });
