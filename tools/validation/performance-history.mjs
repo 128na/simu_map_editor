@@ -61,12 +61,12 @@ export function parseComment(body){
  const match=body.match(/```json\n([\s\S]*?)\n```/);if(!match)throw new Error('Missing measurement JSON');
  const r=JSON.parse(match[1]);rows(r);if(!body.startsWith(marker(r)))throw new Error('Measurement identity mismatch');return r;
 }
-const columns=['kind','benchmarkVersion','recordedAt','revision','runId','runAttempt','runUrl','size','operation','medianMs','samples','environment','commentUrl'];
+const columns=['kind','benchmarkVersion','recordedAt','revision','runId','runAttempt','runUrl','size','operation','medianMs','samples','node','os','arch','cpu','browser','browserVersion','playwrightVersion','renderer','conditions','environment','commentUrl'];
 export function toCsv(entries){
  const quote=value=>'"'+String(value??'').replaceAll('"','""')+'"';
  const out=[columns.join(',')];
  for(const {report,commentUrl} of entries)for(const row of rows(report)){
-  const m=report.metadata;const value={...m,...row,kind:report.kind,environment:JSON.stringify({host:m.environment,browser:report.results[0].browser,browserVersion:report.results[0].browserVersion,playwrightVersion:report.results[0].playwrightVersion,renderer:report.results[0].metrics?.renderer}),commentUrl};
+  const m=report.metadata;const value={...m,...row,kind:report.kind,node:m.environment?.node,os:m.environment?.os,arch:m.environment?.arch,cpu:m.environment?.cpu,browser:report.results[0].browser,browserVersion:report.results[0].browserVersion,playwrightVersion:report.results[0].playwrightVersion,renderer:report.results[0].metrics?.renderer,conditions:JSON.stringify(report.results[0].conditions),environment:JSON.stringify({host:m.environment,browser:report.results[0].browser,browserVersion:report.results[0].browserVersion,playwrightVersion:report.results[0].playwrightVersion,renderer:report.results[0].metrics?.renderer}),commentUrl};
   out.push(columns.map(c=>quote(value[c])).join(','));
  }return out.join('\n')+'\n';
 }
