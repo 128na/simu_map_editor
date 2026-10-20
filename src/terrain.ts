@@ -23,7 +23,8 @@ export function decodeSample(v: number, p: Profile): number {
 }
 function validMap(map: Heightmap): void {
   validateDimensions(map.width, map.height);
-  if (map.heights.length !== map.width * map.height || !map.heights.every(Number.isFinite)) throw new Error('Invalid height data');
+  if (map.heights.length !== map.width * map.height) throw new Error('Invalid height data');
+  for (let i = 0; i < map.heights.length; i++) if (!Number.isFinite(map.heights[i])) throw new Error('Invalid height data');
 }
 export function encodeSamples(map: Heightmap, p: Profile): Uint8Array {
   validMap(map); profile(p);
@@ -34,7 +35,9 @@ export function encodeSamples(map: Heightmap, p: Profile): Uint8Array {
     for (let i = 1; i < 256; i++) if (Math.abs(table[i] - target) < Math.abs(table[best] - target)) best = i;
     inverse[target - p.min] = best;
   }
-  return Uint8Array.from(map.heights, height => inverse[clamp(Math.round(height), p.min, p.max) - p.min]);
+  const samples = new Uint8Array(map.heights.length);
+  for (let i = 0; i < samples.length; i++) samples[i] = inverse[clamp(Math.round(map.heights[i]), p.min, p.max) - p.min];
+  return samples;
 }
 export function quantizationReport(map: Heightmap, p: Profile): { changed: number; outsideRange: number; fractional: number; reachableMin: number; reachableMax: number } {
   const samples=encodeSamples(map,p), table=Array.from({length:256},(_,v)=>decodeSample(v,p)), reachableMin=table[0], reachableMax=table[255];
@@ -50,15 +53,33 @@ export function quantizationReport(map: Heightmap, p: Profile): { changed: numbe
 
 // Two raster passes propagate the maximum (or minimum) Chebyshev cone.
 function envelope(values: Float32Array, w: number, h: number, slope: number, upper: boolean): void {
-  const combine = upper ? Math.max : Math.min;
+  // Inline comparisons avoid a polymorphic Math.max/Math.min call at every edge.
+  // Both passes retain the exact eight-neighbor Chebyshev envelope.
   const cost = upper ? -slope : slope;
-  for (const dir of [1, -1]) {
+  for (let dir = 1; dir >= -1; dir -= 2) {
     for (let y = dir === 1 ? 0 : h - 1; y >= 0 && y < h; y += dir) {
+      const row = y * w, previous = row - dir * w;
+      const hasPrevious = y - dir >= 0 && y - dir < h;
       for (let x = dir === 1 ? 0 : w - 1; x >= 0 && x < w; x += dir) {
-        const i = y * w + x;
-        if (x - dir >= 0 && x - dir < w) values[i] = combine(values[i], values[i - dir] + cost);
-        const py = y - dir;
-        if (py >= 0 && py < h) for (let dx = -1; dx <= 1; dx++) if (x + dx >= 0 && x + dx < w) values[i] = combine(values[i], values[py * w + x + dx] + cost);
+        const i = row + x;
+        let value = values[i], candidate: number;
+        if (x - dir >= 0 && x - dir < w) {
+          candidate = values[i - dir] + cost;
+          if (upper ? candidate > value : candidate < value) value = candidate;
+        }
+        if (hasPrevious) {
+          candidate = values[previous + x] + cost;
+          if (upper ? candidate > value : candidate < value) value = candidate;
+          if (x > 0) {
+            candidate = values[previous + x - 1] + cost;
+            if (upper ? candidate > value : candidate < value) value = candidate;
+          }
+          if (x + 1 < w) {
+            candidate = values[previous + x + 1] + cost;
+            if (upper ? candidate > value : candidate < value) value = candidate;
+          }
+        }
+        values[i] = value;
       }
     }
   }
@@ -66,7 +87,8 @@ function envelope(values: Float32Array, w: number, h: number, slope: number, upp
 function baseline(map: Heightmap, p: Profile): Float32Array {
   const samples = encodeSamples(map, p);
   const table = Array.from({length:256},(_,v)=>decodeSample(v,p));
-  const values = Float32Array.from(samples, v => table[v]);
+  const values = new Float32Array(samples.length);
+  for (let i = 0; i < samples.length; i++) values[i] = table[samples[i]];
   envelope(values, map.width, map.height, p.maxSlope, true);
   return values;
 }

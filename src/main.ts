@@ -3,6 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DEFAULT_PROFILE, decodeSample, toGrid, applyBrush, quantizationReport, validateDimensions, type Heightmap, type Profile } from './terrain';
 import { importHeightmap, exportBmp } from './codecs';
 import { createWaterMesh } from './water';
+import { intersectTerrain } from './picking';
+import { terrainGeometry } from './terrain-geometry';
 import './style.css';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
@@ -35,28 +37,32 @@ let terrain: THREE.Mesh<THREE.BufferGeometry,THREE.MeshStandardMaterial>|undefin
 let water: THREE.Mesh<THREE.BufferGeometry,THREE.MeshStandardMaterial>|undefined;
 const indicator=new THREE.Mesh(new THREE.RingGeometry(.94,1,64),new THREE.MeshBasicMaterial({color:0xffedb3,side:THREE.DoubleSide,depthTest:false,transparent:true,opacity:.9}));indicator.rotation.x=-Math.PI/2;indicator.renderOrder=10;indicator.visible=false;scene.add(indicator);
 let geometryBytes=0;
+let lastTimings:Record<string,number>={};
 let quantization={changed:0,outsideRange:0,fractional:0,reachableMin:-12,reachableMax:32};
 function quantizationText(){return `書出時の量子化: ${quantization.changed.toLocaleString()}画素（到達範囲外 ${quantization.outsideRange.toLocaleString()} / 小数 ${quantization.fractional.toLocaleString()}）。到達標高 ${quantization.reachableMin}〜${quantization.reachableMax}。表示は量子化後の結果です。`;}
 function historyButtons(){el<HTMLButtonElement>('undo').disabled=busy||undo.length===0;el<HTMLButtonElement>('redo').disabled=busy||redo.length===0;}
 function rebuild(next=map,nextProfile=profile){
- const nextGrid=toGrid(next,nextProfile);const w=next.width,h=next.height,positions=new Float32Array((w+1)*(h+1)*3),colors=new Float32Array(positions.length),indices=new Uint32Array(w*h*6),color=new THREE.Color();
- for(let y=0;y<=h;y++)for(let x=0;x<=w;x++){const i=y*(w+1)+x,z=nextGrid[i];positions.set([x-w/2,z,y-h/2],i*3);color.setHSL(z<=nextProfile.seaLevel?.13:.29-Math.max(0,z)*.003,z<=nextProfile.seaLevel?.24:.24,z<=nextProfile.seaLevel?.32:.36+Math.max(0,z)*.006);colors.set([color.r,color.g,color.b],i*3);}
- for(let y=0;y<h;y++)for(let x=0;x<w;x++){const a=y*(w+1)+x,b=a+1,c=a+w+1,d=c+1;indices.set([a,c,b,b,c,d],(y*w+x)*6);}
- const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));geometry.setIndex(new THREE.BufferAttribute(indices,1));geometry.computeVertexNormals();geometry.computeBoundingSphere();
- const nextTerrain=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));
-  let nextWater:ReturnType<typeof createWaterMesh>;
- try{nextWater=createWaterMesh(nextGrid,w,h,nextProfile.seaLevel);}
- catch(error){geometry.dispose();nextTerrain.material.dispose();throw error;}
- if(terrain){scene.remove(terrain);terrain.geometry.dispose();terrain.material.dispose();}if(water){scene.remove(water);water.geometry.dispose();water.material.dispose();}
- terrain=nextTerrain;water=nextWater;scene.add(terrain,water);map=next;profile=nextProfile;grid=nextGrid;quantization=quantizationReport(next,nextProfile);el('quantization').textContent=quantizationText();el('quantization').classList.toggle('warning',quantization.outsideRange>0);
- geometryBytes=positions.byteLength+colors.byteLength+indices.byteLength+(geometry.getAttribute('normal').array.byteLength)+Object.values(nextWater.geometry.attributes).reduce((sum,attribute)=>sum+attribute.array.byteLength,0);
+ const start=performance.now();
+ const nextGrid=toGrid(next,nextProfile),w=next.width,h=next.height;const gridDone=performance.now();
+ const nextQuantization=quantizationReport(next,nextProfile);
+ // Validate water allocation before mutating the visible terrain buffers.
+ const nextWater=createWaterMesh(nextGrid,w,h,nextProfile.seaLevel);const waterDone=performance.now();
+ let geometry:THREE.BufferGeometry;
+ try{geometry=terrainGeometry(nextGrid,w,h,nextProfile.seaLevel,terrain?.geometry,grid,profile.seaLevel);}
+ catch(error){nextWater.geometry.dispose();nextWater.material.dispose();throw error;}
+ if(terrain&&terrain.geometry!==geometry){scene.remove(terrain);terrain.geometry.dispose();terrain.material.dispose();terrain=undefined;}
+ if(!terrain){terrain=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));scene.add(terrain);}
+ if(water){scene.remove(water);water.geometry.dispose();water.material.dispose();}
+ water=nextWater;scene.add(water);map=next;profile=nextProfile;grid=nextGrid;quantization=nextQuantization;el('quantization').textContent=quantizationText();el('quantization').classList.toggle('warning',quantization.outsideRange>0);
+ geometryBytes=geometry.getIndex()!.array.byteLength+Object.values(geometry.attributes).reduce((sum,attribute)=>sum+attribute.array.byteLength,0)+Object.values(nextWater.geometry.attributes).reduce((sum,attribute)=>sum+attribute.array.byteLength,0);
  el('metrics').textContent=`${w} × ${h}タイル / ${(w+1)} × ${(h+1)}頂点\n${(w*h*2).toLocaleString()}三角形 / メッシュ ${(geometryBytes/1048576).toFixed(1)} MiB（CPU配列のみ）`;
+ lastTimings={...lastTimings,gridMs:gridDone-start,quantizationAndWaterMs:waterDone-gridDone,geometryMs:performance.now()-waterDone,rebuildMs:performance.now()-start};
  historyButtons();
 }
 function view(top=false){const size=Math.max(8,map.width,map.height);controls.target.set(0,0,0);camera.position.set(top?0:size*.7,top?size*1.4:size*.85,top?.001:size*.85);camera.near=Math.max(.5,size/1000);camera.far=Math.max(200,size*6);camera.updateProjectionMatrix();controls.update();}
 function setMap(next:Heightmap){validateDimensions(next.width,next.height);if(next.heights.length!==next.width*next.height||!next.heights.every(Number.isFinite))throw new Error('画像寸法または標高データが不正です');rebuild(clone(next));undo=[];redo=[];historyButtons();view();}
 type Stroke = Parameters<typeof applyBrush>[2];
-function stroke(options:Stroke){const previous=clone(map);const result=applyBrush(map,profile,options);if(result.changed){rebuild(result.map);undo.push(previous);if(undo.length>20)undo.shift();redo=[];historyButtons();}status(`造成完了: ${result.changed.toLocaleString()}画素変更 / 履歴 ${undo.length}回（最大20回）`);}
+function stroke(options:Stroke){const previous=clone(map);const coreStart=performance.now();const result=applyBrush(map,profile,options);lastTimings={coreMs:performance.now()-coreStart};if(result.changed){rebuild(result.map);undo.push(previous);if(undo.length>20)undo.shift();redo=[];historyButtons();}status(`造成完了: ${result.changed.toLocaleString()}画素変更 / 履歴 ${undo.length}回（最大20回）`);}
 function selectedStroke(x:number,y:number):Stroke{return{x,y,radius:Number(input('radius').value),amount:Number(input('amount').value),tool:el<HTMLSelectElement>('tool').value as Stroke['tool']};}
 function setBusy(value:boolean){busy=value;document.querySelectorAll<HTMLButtonElement|HTMLInputElement|HTMLSelectElement>('button,input,select').forEach(e=>e.disabled=value);historyButtons();}
 el('create').addEventListener('click',()=>{
@@ -85,7 +91,7 @@ function pick(event:{clientX:number;clientY:number}){
  const rect=renderer.domElement.getBoundingClientRect();
  pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);
  raycaster.setFromCamera(pointer,camera);
- return raycaster.intersectObject(terrain)[0]?.point??null;
+ return intersectTerrain(raycaster.ray,grid,map.width,map.height);
 }
 function paintPointer(event:{clientX:number;clientY:number},candidate=map):Heightmap{
  const point=pick(event);
@@ -153,4 +159,4 @@ window.addEventListener('blur',()=>finishGesture(true));
 window.addEventListener('keydown',event=>{if(event.key==='Escape')finishGesture(true);});
 new ResizeObserver(()=>{const width=viewport.clientWidth,height=viewport.clientHeight;renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();}).observe(viewport);
 function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}rebuild();view();animate();status('検証用の丘と海を表示しています。左ドラッグで高さをそろえて造成できます。');
-if(new URLSearchParams(location.search).has('validate')){const gl=renderer.getContext();const debug=gl.getExtension('WEBGL_debug_renderer_info');Object.assign(window,{__validation:{projectSample:(x:number,y:number)=>{camera.updateMatrixWorld();const xi=Math.max(0,Math.min(map.width,Math.round(x))),yi=Math.max(0,Math.min(map.height,Math.round(y)));const v=new THREE.Vector3(x-map.width/2,grid[xi+yi*(map.width+1)],y-map.height/2).project(camera);const r=renderer.domElement.getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},getSnapshot:()=>({width:map.width,height:map.height,heights:Array.from(map.heights),grid:Array.from(grid),profile:{...profile},undoCount:undo.length,redoCount:redo.length}),setMap,stroke,getMetrics:()=>({triangles:map.width*map.height*2,geometryBytes,waterTriangles:water?(water.geometry.getIndex()?.count??water.geometry.getAttribute('position').count)/3:0,drawCalls:renderer.info.render.calls,renderedTriangles:renderer.info.render.triangles,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),webgl2:gl instanceof WebGL2RenderingContext}),renderSample:async(frames=20)=>{const times:number[]=[];for(let i=0;i<frames;i++){await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return{frameMedianMs:times[Math.floor(times.length*.5)],frameP95Ms:times[Math.min(times.length-1,Math.floor(times.length*.95))]};}}});}
+if(new URLSearchParams(location.search).has('validate')){const gl=renderer.getContext();const debug=gl.getExtension('WEBGL_debug_renderer_info');Object.assign(window,{__validation:{getTimings:()=>({...lastTimings}),projectSample:(x:number,y:number)=>{camera.updateMatrixWorld();const xi=Math.max(0,Math.min(map.width,Math.round(x))),yi=Math.max(0,Math.min(map.height,Math.round(y)));const v=new THREE.Vector3(x-map.width/2,grid[xi+yi*(map.width+1)],y-map.height/2).project(camera);const r=renderer.domElement.getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},getSnapshot:()=>({width:map.width,height:map.height,heights:Array.from(map.heights),grid:Array.from(grid),profile:{...profile},undoCount:undo.length,redoCount:redo.length}),setMap,stroke,getMetrics:()=>({triangles:map.width*map.height*2,geometryBytes,waterTriangles:water?(water.geometry.getIndex()?.count??water.geometry.getAttribute('position').count)/3:0,drawCalls:renderer.info.render.calls,renderedTriangles:renderer.info.render.triangles,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),webgl2:gl instanceof WebGL2RenderingContext}),renderSample:async(frames=20)=>{const times:number[]=[];for(let i=0;i<frames;i++){await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return{frameMedianMs:times[Math.floor(times.length*.5)],frameP95Ms:times[Math.min(times.length-1,Math.floor(times.length*.95))]};}}});}

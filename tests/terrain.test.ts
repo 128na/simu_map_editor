@@ -111,3 +111,38 @@ test('fixed target segments paint continuously without accumulating height on ov
   const lower=applyBrush(overlap.map,p,{x:21,y:4,from:{x:2,y:4},radius:1,amount:1,tool:'lower',target:1});
   for(let x=2;x<=21;x++)assert.equal(lower.map.heights[x+4*24],1);
 });
+
+test('optimized brushes match an independent all-pairs envelope across modes and narrow maps', () => {
+  for (const mode of ['linear', 'clamp', 'legacy-small', 'legacy-large'] as Mode[]) for (const slope of [1, 2] as const) {
+    const p = { ...P, mode, maxSlope: slope };
+    for (const [width, height] of [[1, 7], [7, 1], [6, 5]]) {
+      const original = map(width, height);
+      for (let i = 0; i < original.heights.length; i++) original.heights[i] = ((i * 17 + i * i) % 23) - 12 + (i % 3) * 0.25;
+      const decoded = Float32Array.from(encodeSamples(original, p), v => decodeSample(v, p));
+      const cone = (values: Float32Array, upper: boolean) => Float32Array.from(values, (_, i) => {
+        let value = upper ? -Infinity : Infinity;
+        for (let j = 0; j < values.length; j++) {
+          const distance = Math.max(Math.abs(i % width - j % width), Math.abs(Math.floor(i / width) - Math.floor(j / width)));
+          value = upper ? Math.max(value, values[j] - slope * distance) : Math.min(value, values[j] + slope * distance);
+        }
+        return value;
+      });
+      const base = cone(decoded, true);
+      for (const tool of ['raise', 'lower', 'flatten'] as const) {
+        const target = decodeSample(128, p), x = Math.floor(width / 2), y = Math.floor(height / 2), radius = 1.1;
+        const selected = Array.from(base, (_, i) => Math.hypot(i % width - x, Math.floor(i / width) - y) <= radius);
+        let expected: Float32Array;
+        if (tool === 'flatten') {
+          const lower = cone(Float32Array.from(base, (_, i) => selected[i] ? target : -Infinity), true);
+          const upper = cone(Float32Array.from(base, (_, i) => selected[i] ? target : Infinity), false);
+          expected = Float32Array.from(base, (v, i) => Math.max(lower[i], Math.min(upper[i], v)));
+        } else {
+          expected = cone(Float32Array.from(base, (v, i) => selected[i] ? Math.max(decodeSample(0, p), Math.min(decodeSample(255, p), v + (tool === 'raise' ? 3 : -3))) : v), tool === 'raise');
+        }
+        const actual = applyBrush(original, p, { x, y, radius, amount: 3, tool, ...(tool === 'flatten' ? { target } : {}) });
+        assert.deepEqual(actual.map.heights, expected, `${mode}/${slope}/${width}x${height}/${tool}`);
+        assert.equal(actual.changed, expected.reduce((count, value, i) => count + Number(value !== original.heights[i]), 0));
+      }
+    }
+  }
+});

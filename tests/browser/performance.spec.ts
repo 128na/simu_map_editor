@@ -4,7 +4,9 @@ import { resolve } from 'node:path';
 
 test.use({trace:'off'});
 
-for(const size of [1024,2048,4096]) test(`operation performance ${size}`,async({page},info)=>{
+const sizes=(process.env.PERF_SIZES??'1024,2048,4096').split(',').map(Number);
+if(!sizes.length||sizes.some(n=>![256,512,1024,2048,4096].includes(n)))throw new Error('Invalid PERF_SIZES');
+for(const size of sizes) test(`operation performance ${size}`,async({page},info)=>{
  test.skip(!process.env.VALIDATE_OPERATIONS,'Explicit operation performance measurement');
  test.setTimeout(360000);
  await page.goto('/?validate=1');await page.waitForFunction(()=>!!(window as any).__validation);
@@ -19,7 +21,7 @@ for(const size of [1024,2048,4096]) test(`operation performance ${size}`,async({
    const times=[];
    for(let i=0;i<3;i++){
     const t=performance.now();api.stroke({x:size/2+i*24,y:size/2,radius:8,amount:1,tool,...(tool==='flatten'?{target:1}:{})});
-    times.push({ms:performance.now()-t,status:document.getElementById('status')!.textContent});
+    times.push({ms:performance.now()-t,status:document.getElementById('status')!.textContent,timings:api.getTimings()});
     await new Promise<void>(r=>requestAnimationFrame(()=>r()));
    }out[tool]=times;
   }return out;
