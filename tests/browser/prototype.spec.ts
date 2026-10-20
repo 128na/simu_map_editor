@@ -10,6 +10,7 @@ function native(path:string,profile:any):any {
   expect(result.status,result.stderr).toBe(0);return JSON.parse(result.stdout);
 }
 test.beforeEach(async({page})=>{
+  page.on('dialog',dialog=>void dialog.accept());
   await page.goto('/?validate=1');
   await page.waitForFunction(()=>!!(window as any).__validation);
 });
@@ -66,9 +67,9 @@ test('real UI imports, edits by click, undo/redo, exports and retains map on inp
   await expect(page.locator('#status')).toContainText('造成完了');
   const edited=await page.evaluate(()=>(window as any).__validation.getSnapshot());
   expect(edited.heights).not.toEqual(before.heights);expect(edited.undoCount).toBe(1);
-  await page.locator('#undo').click();
+  await page.locator('#undo').click();await expect(page.locator('#status')).toContainText('造成を元に戻しました');
   expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(before.heights);
-  await page.locator('#redo').click();
+  await page.locator('#redo').click();await expect(page.locator('#status')).toContainText('造成をやり直しました');
   expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(edited.heights);
   const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;
   const path=join(output,`ui-export-${info.project.name}.bmp`);await download.saveAs(path);
@@ -82,7 +83,7 @@ test('real UI imports, edits by click, undo/redo, exports and retains map on inp
   expect(errors).toEqual([]);
   await page.screenshot({path:join(output,`prototype-${info.project.name}.png`),fullPage:true});
 });
-test('history is capped at twenty atomic strokes and an invalid profile preserves the map',async({page})=>{
+test('history stores more than twenty atomic delta strokes and an invalid profile preserves the map',async({page})=>{
   await page.locator('#mode').selectOption('clamp');
   await page.evaluate(()=>{
     const api=(window as any).__validation;
@@ -90,15 +91,15 @@ test('history is capped at twenty atomic strokes and an invalid profile preserve
     for(let i=0;i<25;i++)api.stroke({x:4,y:4,radius:1,amount:1,tool:'raise'});
   });
   const before=await page.evaluate(()=>(window as any).__validation.getSnapshot());
-  expect(before.undoCount).toBe(20);
+  expect(before.undoCount).toBe(25);
   await page.locator('#seaLevel').fill('100');await page.locator('#seaLevel').dispatchEvent('change');
   await expect(page.locator('#status')).toHaveClass(/error/);
   expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).grid).toEqual(before.grid);
   expect(await page.locator('#seaLevel').inputValue()).toBe('-2');
-  for(let i=0;i<20;i++)await page.locator('#undo').click();
+  for(let i=0;i<25;i++){await page.locator('#undo').click();await expect(page.locator('#status')).toContainText('造成を元に戻しました');await expect.poll(async()=> (await page.evaluate(()=>(window as any).__validation.getSnapshot())).undoCount).toBe(24-i);}
   await expect(page.locator('#undo')).toBeDisabled();
   const undone=await page.evaluate(()=>(window as any).__validation.getSnapshot());
-  expect(undone.heights[36]).toBe(5);expect(undone.redoCount).toBe(20);
+  expect(undone.heights[36]).toBe(0);expect(undone.redoCount).toBe(25);
 });
 test('large header rejects while keeping terrain and 1024 terrain renders',async({page},info)=>{
   const header=Buffer.alloc(13);header.writeUInt32BE(1000000);header.writeUInt32BE(1000000,4);header[8]=8;
@@ -155,7 +156,7 @@ test('unrepresentable heights are reported before and during BMP export',async({
   await expect(page.locator('#status')).toContainText('到達範囲外 64');
   const before=await page.evaluate(()=>(window as any).__validation.getSnapshot());expect(before.heights[0]).toBe(20);
   await page.evaluate(()=>(window as any).__validation.stroke({x:4,y:4,radius:1,amount:1,tool:'raise'}));
-  await page.locator('#undo').click();
+  await page.locator('#undo').click();await expect(page.locator('#status')).toContainText('造成を元に戻しました');
   expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(before.heights);
 });
 
@@ -170,8 +171,8 @@ test('drag holds its first height across sparse moves and is a single undo opera
   const raised=await page.evaluate(()=>(window as any).__validation.getSnapshot());
   for(let x=4;x<=27;x++)expect(raised.heights[x+8*32],`column ${x}`).toBe(2);
   expect(raised.undoCount).toBe(1);await expect(page.locator('#dragHeight')).toHaveText('3');
-  await page.locator('#undo').click();expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(new Array(512).fill(0));
-  await page.locator('#redo').click();expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(raised.heights);
+  await page.locator('#undo').click();await expect(page.locator('#status')).toContainText('造成を元に戻しました');expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(new Array(512).fill(0));
+  await page.locator('#redo').click();await expect(page.locator('#status')).toContainText('造成をやり直しました');expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(raised.heights);
   // Cancelling rolls back the whole in-progress drag without making another history entry.
   const point=await page.evaluate(()=>(window as any).__validation.projectSample(15,8));
   await page.mouse.move(point.x,point.y);await page.mouse.down();await page.keyboard.press('Escape');await page.mouse.up();

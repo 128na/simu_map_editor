@@ -7,6 +7,7 @@ import { DEFAULT_PROFILE } from '../../src/terrain.ts';
 const playwrightVersion = createRequire(import.meta.url)('@playwright/test/package.json').version;
 
 test.use({trace:'off'});
+test.beforeEach(async({page})=>{page.on('dialog',dialog=>void dialog.accept());});
 
 const sizes=(process.env.PERF_SIZES??'1024,2048,4096').split(',').map(Number);
 if(!sizes.length||sizes.some(n=>![256,512,1024,2048,4096].includes(n)))throw new Error('Invalid PERF_SIZES');
@@ -14,7 +15,7 @@ for(const size of sizes) test(`operation performance ${size}`,async({page,browse
  test.skip(!process.env.VALIDATE_OPERATIONS,'Explicit operation performance measurement');
  test.setTimeout(360000);
  await page.goto('/?validate=1');await page.waitForFunction(()=>!!(window as any).__validation);
- const result:any={size,browser:info.project.name,browserVersion:browser.version(),playwrightVersion,metadata:createPerformanceMetadata('browser-v1'),conditions:{map:'flat',radius:8,amount:1,warmup:0,trials:3,profile:{...DEFAULT_PROFILE}}};
+ const result:any={size,browser:info.project.name,browserVersion:browser.version(),playwrightVersion,metadata:createPerformanceMetadata('browser-v2'),conditions:{map:'flat',radius:8,amount:1,warmup:0,trials:3,profile:{...DEFAULT_PROFILE}}};
  await page.locator('#newWidth').fill(String(size));await page.locator('#newHeight').fill(String(size));
  const createStart=Date.now();await page.locator('#create').click({timeout:180000});
  await expect(page.locator('#status')).toContainText(`${size} × ${size}`,{timeout:180000});result.createMs=Date.now()-createStart;
@@ -31,7 +32,7 @@ for(const size of sizes) test(`operation performance ${size}`,async({page,browse
   }return out;
  },size);
  for(const entries of Object.values(result.strokes) as any[])for(const entry of entries)expect(entry.status).not.toContain('造成完了: 0画素');
- const action=async(id:string)=>{const t=Date.now();await page.locator(id).click({timeout:180000});await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>r())));return Date.now()-t;};
+ const action=async(id:string)=>{const t=Date.now();await page.locator(id).click({timeout:180000});await expect(page.locator('#status')).toContainText(id==='#undo'?'造成を元に戻しました':'造成をやり直しました');await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>r())));return Date.now()-t;};
  console.log(`strokes completed ${info.project.name} ${size}`);result.undoMs=await action('#undo');result.redoMs=await action('#redo');
  await page.locator('#top').click();await page.waitForTimeout(250);
  const points=await page.evaluate(size=>Array.from({length:7},(_,i)=>(window as any).__validation.projectSample(size/2-24+i*8,size/2+32)),size);
