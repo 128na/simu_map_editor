@@ -3,6 +3,7 @@ import {mkdirSync,writeFileSync} from 'node:fs';
 import {cpus,platform,arch} from 'node:os';
 import assert from 'node:assert/strict';
 import {applyBrush,DEFAULT_PROFILE} from '../../src/terrain.ts';
+import {createPerformanceMetadata} from './performance-metadata.mjs';
 
 const samples=[];
 for(const size of [256,512,1024])for(const tool of ['raise','lower','flatten']){
@@ -17,6 +18,8 @@ for(const size of [256,512,1024])for(const tool of ['raise','lower','flatten']){
  }
  const sorted=[...ms].sort((a,b)=>a-b);samples.push({size,tool,ms,medianMs:sorted[2]});
 }
-const result={node:process.version,platform:platform(),arch:arch(),cpu:cpus()[0]?.model,revision:process.env.GITHUB_SHA??null,samples};
+const metadata=createPerformanceMetadata('cpu-v1');
+const conditions={map:'flat',radius:8,amount:1,warmup:1,trials:5,profile:{...DEFAULT_PROFILE}};
+const result={metadata,conditions,node:process.version,platform:platform(),arch:arch(),cpu:cpus()[0]?.model,revision:process.env.GITHUB_SHA??null,samples};
 mkdirSync('.validation',{recursive:true});writeFileSync('.validation/cpu-performance.json',JSON.stringify(result,null,2)+'\n');
 console.table(samples.map(({size,tool,medianMs})=>({size,tool,medianMs:medianMs.toFixed(2)})));

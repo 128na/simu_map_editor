@@ -1,16 +1,20 @@
 import { test, expect } from '@playwright/test';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { createPerformanceMetadata } from '../../tools/validation/performance-metadata.mjs';
+import { DEFAULT_PROFILE } from '../../src/terrain.ts';
+const playwrightVersion = createRequire(import.meta.url)('@playwright/test/package.json').version;
 
 test.use({trace:'off'});
 
 const sizes=(process.env.PERF_SIZES??'1024,2048,4096').split(',').map(Number);
 if(!sizes.length||sizes.some(n=>![256,512,1024,2048,4096].includes(n)))throw new Error('Invalid PERF_SIZES');
-for(const size of sizes) test(`operation performance ${size}`,async({page},info)=>{
+for(const size of sizes) test(`operation performance ${size}`,async({page,browser},info)=>{
  test.skip(!process.env.VALIDATE_OPERATIONS,'Explicit operation performance measurement');
  test.setTimeout(360000);
  await page.goto('/?validate=1');await page.waitForFunction(()=>!!(window as any).__validation);
- const result:any={size,browser:info.project.name};
+ const result:any={size,browser:info.project.name,browserVersion:browser.version(),playwrightVersion,metadata:createPerformanceMetadata('browser-v1'),conditions:{map:'flat',radius:8,amount:1,warmup:0,trials:3,profile:{...DEFAULT_PROFILE}}};
  await page.locator('#newWidth').fill(String(size));await page.locator('#newHeight').fill(String(size));
  const createStart=Date.now();await page.locator('#create').click({timeout:180000});
  await expect(page.locator('#status')).toContainText(`${size} × ${size}`,{timeout:180000});result.createMs=Date.now()-createStart;

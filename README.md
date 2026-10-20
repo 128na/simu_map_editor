@@ -46,6 +46,10 @@ npm run test:browser -- --grep 'operation performance' --project chrome
 
 標準は1024・2048・4096四方です。`PERF_SIZES` 環境変数でカンマ区切りのサイズを指定できます。GitHub Actionsの `browser-performance` は手動起動でサイズを選択し、Playwright Chromiumで計測します。通常ランナーの描画結果をローカルGPUの速度と直接比較しないでください。CIと同じ専用設定は `npx playwright install chromium` 後に `npm run benchmark:browser` で実行できます（`VALIDATE_OPERATIONS=1` が必要）。
 
+mainへのpushとmainでの手動ブラウザ計測が成功すると、[性能記録Issue](https://github.com/128na/simu_map_editor/issues/1) に結果表とJSONをコメントします。PRからは投稿しません。成果物が期限切れになっても、コメント内の生データから再集計できます。同一の計測種別・CI実行ID・再実行番号は二重投稿せず、再実行番号が異なる測定は別記録として残します。
+
+GitHub CLIでリポジトリを読める認証を済ませてから `npm run performance:export` を実行すると、公式CIボットの記録を取得し `.validation/performance-history.csv` へ集約します。引数で出力先を変更できます（例: `npm run performance:export -- .validation/history.csv`）。1行は1実行・サイズ・操作で、単位はmsです。CPU/ブラウザ、計測バージョン、環境を分けて比較してください。数値は平均せず、生の各試行から中央値を再計算します。ローカル計測は識別情報を保存しますが、自動ではIssueへ投稿しません。
+
 ## ドキュメント
 
 ドキュメントは [docs/README.md](docs/README.md) の規約に従います。初期調査は `docs/records/`、意思決定は `docs/adr/` に保存し、調査の続報は新しい記録として追加します。

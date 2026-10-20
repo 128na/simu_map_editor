@@ -29,3 +29,26 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
           include-hidden-files: true
+  record-performance:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: docs-lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    concurrency:
+      group: performance-record-cpu-${{ github.run_id }}-${{ github.run_attempt }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cpu-performance-${{ github.sha }}
+          path: .validation/record
+      - run: node tools/validation/performance-history.mjs publish cpu .validation/record/cpu-performance.json
+        env:
+          GH_TOKEN: ${{ github.token }}
