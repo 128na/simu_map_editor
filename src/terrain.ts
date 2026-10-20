@@ -134,3 +134,89 @@ export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: nu
   for (let i = 0; i < heights.length; i++) if (heights[i] !== map.heights[i]) changed++;
   return { map: { width: map.width, height: map.height, heights }, changed };
 }
+
+export interface DirtyBounds { x0: number; y0: number; x1: number; y1: number }
+export type Brush = Parameters<typeof applyBrush>[2];
+export interface IncrementalBrushResult {
+  map: Heightmap;
+  changed: number;
+  changedIndices: Uint32Array;
+  bounds: DirtyBounds | null;
+  incremental: boolean;
+}
+// Heightmap objects and their height arrays must be treated as immutable after
+// this API receives them. The profile is keyed by value, so changing a profile
+// never reuses a previous compatibility decision.
+const legalMaps = new WeakMap<Heightmap, Set<string>>();
+function profileKey(p: Profile): string { return JSON.stringify([p.mode, p.min, p.max, p.factor, p.maxSlope, p.seaLevel]); }
+function rememberLegal(map: Heightmap, key: string): void {
+  let keys = legalMaps.get(map);
+  if (!keys) { keys = new Set(); legalMaps.set(map, keys); }
+  keys.add(key);
+}
+function isLegal(map: Heightmap, p: Profile, key: string): boolean {
+  if (legalMaps.get(map)?.has(key)) return true;
+  validMap(map); profile(p);
+  const reachable = new Set(Array.from({ length: 256 }, (_, v) => decodeSample(v, p)));
+  const { width: w, height: h, heights: values } = map;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, value = values[i];
+    if (!reachable.has(value)) return false;
+    if (x && Math.abs(value - values[i - 1]) > p.maxSlope) return false;
+    if (y) for (let dx = -1; dx <= 1; dx++) {
+      if (x + dx >= 0 && x + dx < w && Math.abs(value - values[i - w + dx]) > p.maxSlope) return false;
+    }
+  }
+  rememberLegal(map, key);
+  return true;
+}
+/** Exact local equivalent of applyBrush for immutable, normalized source maps. */
+export function applyBrushIncremental(map: Heightmap, p: Profile, brush: Brush): IncrementalBrushResult {
+  const key = profileKey(p);
+  const incremental = isLegal(map, p, key);
+  if (!incremental) {
+    const result = applyBrush(map, p, brush), indices: number[] = [];
+    let bounds: DirtyBounds | null = null;
+    for (let i = 0; i < map.heights.length; i++) if (result.map.heights[i] !== map.heights[i]) {
+      indices.push(i);
+      const x = i % map.width, y = Math.floor(i / map.width);
+      if (!bounds) bounds = { x0: x, y0: y, x1: x, y1: y };
+      else { bounds.x0 = Math.min(bounds.x0, x); bounds.y0 = Math.min(bounds.y0, y); bounds.x1 = Math.max(bounds.x1, x); bounds.y1 = Math.max(bounds.y1, y); }
+    }
+    // applyBrush normalizes every nonempty edit, but a no-op intentionally
+    // preserves raw input. Verify only when this result is used again.
+    return { ...result, changedIndices: Uint32Array.from(indices), bounds, incremental };
+  }
+  // A seed can affect a sample only within (reachableMax-reachableMin)/slope:
+  // farther cones lie outside every possible source height. One extra cell
+  // keeps the crop boundary unchanged. Legal input needs no baseline repair,
+  // so no external seed can affect either normalization or the local edit.
+  const halo = Math.ceil((decodeSample(255, p) - decodeSample(0, p)) / p.maxSlope) + 1;
+  const from = brush.from ?? brush;
+  if (![brush.x, brush.y, from.x, from.y, brush.radius].every(Number.isFinite)) {
+    applyBrush(map, p, brush); // Preserve the public validation error.
+    throw new Error('Invalid brush path');
+  }
+  const x0 = Math.max(0, Math.min(map.width - 1, Math.floor(Math.min(brush.x, from.x) - brush.radius - halo)));
+  const y0 = Math.max(0, Math.min(map.height - 1, Math.floor(Math.min(brush.y, from.y) - brush.radius - halo)));
+  const x1 = Math.max(x0, Math.min(map.width - 1, Math.ceil(Math.max(brush.x, from.x) + brush.radius + halo)));
+  const y1 = Math.max(y0, Math.min(map.height - 1, Math.ceil(Math.max(brush.y, from.y) + brush.radius + halo)));
+  const width = x1 - x0 + 1, height = y1 - y0 + 1, local = new Float32Array(width * height);
+  for (let y = 0; y < height; y++) local.set(map.heights.subarray((y + y0) * map.width + x0, (y + y0) * map.width + x0 + width), y * width);
+  const result = applyBrush({ width, height, heights: local }, p, { ...brush, x: brush.x - x0, y: brush.y - y0, ...(brush.from ? { from: { x: from.x - x0, y: from.y - y0 } } : {}) });
+  if (result.changed === 0) return { map, changed: 0, changedIndices: new Uint32Array(0), bounds: null, incremental };
+  const heights = map.heights.slice(), indices: number[] = [];
+  let bounds: DirtyBounds | null = null;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const localIndex = y * width + x, i = (y + y0) * map.width + x + x0;
+    if (result.map.heights[localIndex] !== local[localIndex]) {
+      heights[i] = result.map.heights[localIndex]; indices.push(i);
+      const gx = x + x0, gy = y + y0;
+      if (!bounds) bounds = { x0: gx, y0: gy, x1: gx, y1: gy };
+      else { bounds.x0 = Math.min(bounds.x0, gx); bounds.y0 = Math.min(bounds.y0, gy); bounds.x1 = Math.max(bounds.x1, gx); bounds.y1 = Math.max(bounds.y1, gy); }
+    }
+  }
+  const next = { width: map.width, height: map.height, heights };
+  rememberLegal(next, key);
+  return { map: next, changed: indices.length, changedIndices: Uint32Array.from(indices), bounds, incremental };
+}

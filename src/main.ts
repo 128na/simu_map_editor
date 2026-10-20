@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DEFAULT_PROFILE, decodeSample, toGrid, applyBrush, quantizationReport, validateDimensions, type Heightmap, type Profile } from './terrain';
+import { DEFAULT_PROFILE, decodeSample, toGrid, applyBrush, applyBrushIncremental, type DirtyBounds, quantizationReport, validateDimensions, type Heightmap, type Profile } from './terrain';
 import { importHeightmap, exportBmp } from './codecs';
 import { createWaterMesh } from './water';
 import { intersectTerrain } from './picking';
 import { terrainGeometry } from './terrain-geometry';
+import { patchGrid, waterChanged } from './grid-patch';
 import './style.css';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
@@ -41,18 +42,21 @@ let lastTimings:Record<string,number>={};
 let quantization={changed:0,outsideRange:0,fractional:0,reachableMin:-12,reachableMax:32};
 function quantizationText(){return `書出時の量子化: ${quantization.changed.toLocaleString()}画素（到達範囲外 ${quantization.outsideRange.toLocaleString()} / 小数 ${quantization.fractional.toLocaleString()}）。到達標高 ${quantization.reachableMin}〜${quantization.reachableMax}。表示は量子化後の結果です。`;}
 function historyButtons(){el<HTMLButtonElement>('undo').disabled=busy||undo.length===0;el<HTMLButtonElement>('redo').disabled=busy||redo.length===0;}
-function rebuild(next=map,nextProfile=profile){
+type Edit={incremental:boolean;bounds:DirtyBounds|null};
+function rebuild(next=map,nextProfile=profile,edit?:Edit){
  const start=performance.now();
- const nextGrid=toGrid(next,nextProfile),w=next.width,h=next.height;const gridDone=performance.now();
- const nextQuantization=quantizationReport(next,nextProfile);
+ const w=next.width,h=next.height;
+ const patch=edit?.incremental&&edit.bounds&&nextProfile===profile&&w===map.width&&h===map.height?patchGrid(grid,next,edit.bounds):null;
+ const nextGrid=patch?patch.grid:toGrid(next,nextProfile);const gridDone=performance.now();
+ const nextQuantization=patch?{changed:0,outsideRange:0,fractional:0,reachableMin:decodeSample(0,nextProfile),reachableMax:decodeSample(255,nextProfile)}:quantizationReport(next,nextProfile);
  // Validate water allocation before mutating the visible terrain buffers.
- const nextWater=createWaterMesh(nextGrid,w,h,nextProfile.seaLevel);const waterDone=performance.now();
+ const nextWater=patch&&water&&!waterChanged(grid,nextGrid,w,h,nextProfile.seaLevel,patch.dirty)?water:createWaterMesh(nextGrid,w,h,nextProfile.seaLevel);const waterDone=performance.now();
  let geometry:THREE.BufferGeometry;
- try{geometry=terrainGeometry(nextGrid,w,h,nextProfile.seaLevel,terrain?.geometry,grid,profile.seaLevel);}
- catch(error){nextWater.geometry.dispose();nextWater.material.dispose();throw error;}
+ try{geometry=terrainGeometry(nextGrid,w,h,nextProfile.seaLevel,terrain?.geometry,grid,profile.seaLevel,patch?.dirty);}
+ catch(error){if(nextWater!==water){nextWater.geometry.dispose();nextWater.material.dispose();}throw error;}
  if(terrain&&terrain.geometry!==geometry){scene.remove(terrain);terrain.geometry.dispose();terrain.material.dispose();terrain=undefined;}
  if(!terrain){terrain=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));scene.add(terrain);}
- if(water){scene.remove(water);water.geometry.dispose();water.material.dispose();}
+ if(water&&water!==nextWater){scene.remove(water);water.geometry.dispose();water.material.dispose();}
  water=nextWater;scene.add(water);map=next;profile=nextProfile;grid=nextGrid;quantization=nextQuantization;el('quantization').textContent=quantizationText();el('quantization').classList.toggle('warning',quantization.outsideRange>0);
  geometryBytes=geometry.getIndex()!.array.byteLength+Object.values(geometry.attributes).reduce((sum,attribute)=>sum+attribute.array.byteLength,0)+Object.values(nextWater.geometry.attributes).reduce((sum,attribute)=>sum+attribute.array.byteLength,0);
  el('metrics').textContent=`${w} × ${h}タイル / ${(w+1)} × ${(h+1)}頂点\n${(w*h*2).toLocaleString()}三角形 / メッシュ ${(geometryBytes/1048576).toFixed(1)} MiB（CPU配列のみ）`;
@@ -62,7 +66,7 @@ function rebuild(next=map,nextProfile=profile){
 function view(top=false){const size=Math.max(8,map.width,map.height);controls.target.set(0,0,0);camera.position.set(top?0:size*.7,top?size*1.4:size*.85,top?.001:size*.85);camera.near=Math.max(.5,size/1000);camera.far=Math.max(200,size*6);camera.updateProjectionMatrix();controls.update();}
 function setMap(next:Heightmap){validateDimensions(next.width,next.height);if(next.heights.length!==next.width*next.height||!next.heights.every(Number.isFinite))throw new Error('画像寸法または標高データが不正です');rebuild(clone(next));undo=[];redo=[];historyButtons();view();}
 type Stroke = Parameters<typeof applyBrush>[2];
-function stroke(options:Stroke){const previous=clone(map);const coreStart=performance.now();const result=applyBrush(map,profile,options);lastTimings={coreMs:performance.now()-coreStart};if(result.changed){rebuild(result.map);undo.push(previous);if(undo.length>20)undo.shift();redo=[];historyButtons();}status(`造成完了: ${result.changed.toLocaleString()}画素変更 / 履歴 ${undo.length}回（最大20回）`);}
+function stroke(options:Stroke){const previous=clone(map);const coreStart=performance.now();const result=applyBrushIncremental(map,profile,options);lastTimings={coreMs:performance.now()-coreStart};if(result.changed){rebuild(result.map,profile,result);undo.push(previous);if(undo.length>20)undo.shift();redo=[];historyButtons();}status(`造成完了: ${result.changed.toLocaleString()}画素変更 / 履歴 ${undo.length}回（最大20回）`);}
 function selectedStroke(x:number,y:number):Stroke{return{x,y,radius:Number(input('radius').value),amount:Number(input('amount').value),tool:el<HTMLSelectElement>('tool').value as Stroke['tool']};}
 function setBusy(value:boolean){busy=value;document.querySelectorAll<HTMLButtonElement|HTMLInputElement|HTMLSelectElement>('button,input,select').forEach(e=>e.disabled=value);historyButtons();}
 el('create').addEventListener('click',()=>{
@@ -93,6 +97,7 @@ function pick(event:{clientX:number;clientY:number}){
  raycaster.setFromCamera(pointer,camera);
  return intersectTerrain(raycaster.ray,grid,map.width,map.height);
 }
+let pendingEdit:Edit|null=null;
 function paintPointer(event:{clientX:number;clientY:number},candidate=map):Heightmap{
  const point=pick(event);
  indicator.visible=!!point&&(!busy||!!gesture);
@@ -100,14 +105,23 @@ function paintPointer(event:{clientX:number;clientY:number},candidate=map):Heigh
  indicator.position.copy(point);indicator.position.y+=.2;indicator.scale.setScalar(Number(input('radius').value));
  if(!gesture)return candidate;
  const at={x:point.x+map.width/2,y:point.z+map.height/2};
- const result=applyBrush(candidate,profile,{...gesture.options,...at,from:gesture.last??undefined});
+ const result=applyBrushIncremental(candidate,profile,{...gesture.options,...at,from:gesture.last??undefined});
+ if(result.changed){
+  if(!pendingEdit)pendingEdit={incremental:result.incremental,bounds:result.bounds?{...result.bounds}:null};
+  else{
+   pendingEdit.incremental&&=result.incremental;
+   const a=pendingEdit.bounds,b=result.bounds;
+   if(a&&b){a.x0=Math.min(a.x0,b.x0);a.y0=Math.min(a.y0,b.y0);a.x1=Math.max(a.x1,b.x1);a.y1=Math.max(a.y1,b.y1);}
+   else pendingEdit.bounds=null;
+  }
+ }
  gesture.last=at;
  return result.changed?result.map:candidate;
 }
 function flushPointers(){
  cancelAnimationFrame(paintFrame);paintFrame=0;const pending=pendingPointers;pendingPointers=[];
- let next=map;for(const point of pending)next=paintPointer(point,next);
- if(next!==map)rebuild(next);
+ pendingEdit=null;let next=map;for(const point of pending)next=paintPointer(point,next);
+ if(next!==map)rebuild(next,profile,pendingEdit??undefined);
 }
 function finishGesture(cancel=false){
  if(!gesture)return;
@@ -134,7 +148,7 @@ renderer.domElement.addEventListener('pointerdown',event=>{
  el('dragHeight').textContent=String(options.target+1);
  gesture={id:event.pointerId,before:clone(map),last:null,options};
  controls.enabled=false;setBusy(true);renderer.domElement.setPointerCapture(event.pointerId);
- try{const next=paintPointer(event);if(next!==map)rebuild(next);status(`ドラッグ造成中: 表示標高 ${options.target+1} に固定（離すと1操作として確定）`);}
+ try{pendingEdit=null;const next=paintPointer(event);if(next!==map)rebuild(next,profile,pendingEdit??undefined);status(`ドラッグ造成中: 表示標高 ${options.target+1} に固定（離すと1操作として確定）`);}
  catch(error){finishGesture(true);status(String(error),true);}
 });
 renderer.domElement.addEventListener('pointermove',event=>{

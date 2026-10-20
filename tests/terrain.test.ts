@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyBrush, decodeSample, DEFAULT_PROFILE as P, encodeSamples, toGrid, validateDimensions } from '../src/terrain.ts';
+import { applyBrushIncremental, applyBrush, decodeSample, DEFAULT_PROFILE as P, encodeSamples, toGrid, validateDimensions } from '../src/terrain.ts';
 import type { Heightmap, Mode } from '../src/terrain.ts';
 const map = (w: number, h: number, v = 0): Heightmap => ({ width: w, height: h, heights: new Float32Array(w * h).fill(v) });
 function constrained(m: Heightmap, slope = 1) {
@@ -143,6 +143,84 @@ test('optimized brushes match an independent all-pairs envelope across modes and
         assert.deepEqual(actual.map.heights, expected, `${mode}/${slope}/${width}x${height}/${tool}`);
         assert.equal(actual.changed, expected.reduce((count, value, i) => count + Number(value !== original.heights[i]), 0));
       }
+    }
+  }
+});
+
+test('incremental brush sequences equal full normalization including bounds and exported borders', () => {
+  for (const mode of ['linear', 'clamp', 'legacy-small', 'legacy-large'] as Mode[]) for (const maxSlope of [1, 2] as const) {
+    const p = { ...P, mode, maxSlope };
+    let fast = map(151, 113, decodeSample(128, p)), full = fast;
+    for (let step = 0; step < 18; step++) {
+      const tool = (['raise', 'lower', 'flatten'] as const)[step % 3];
+      const brush = { x: step % 4 === 0 ? 0 : (step * 31) % 151, y: step % 5 === 0 ? 112 : (step * 19) % 113, radius: 2.4, amount: 4, tool, ...(tool === 'flatten' ? { target: decodeSample(180, p) } : {}), ...(step % 4 === 3 ? { from: { x: 6, y: 7 } } : {}) };
+      const expected = applyBrush(full, p, brush), actual = applyBrushIncremental(fast, p, brush);
+      assert.equal(actual.incremental, true);
+      assert.deepEqual(actual.map.heights, expected.map.heights, `${mode}/${maxSlope}/${step}`);
+      assert.equal(actual.changed, expected.changed);
+      const changed = Array.from(actual.map.heights, (v, i) => v !== fast.heights[i] ? i : -1).filter(i => i >= 0);
+      assert.deepEqual([...actual.changedIndices], changed);
+      for (const i of changed) {
+        assert.ok(actual.bounds && i % fast.width >= actual.bounds.x0 && i % fast.width <= actual.bounds.x1 && Math.floor(i / fast.width) >= actual.bounds.y0 && Math.floor(i / fast.width) <= actual.bounds.y1);
+      }
+      if (!changed.length) assert.equal(actual.bounds, null);
+      assert.deepEqual(toGrid(actual.map, p), toGrid(expected.map, p));
+      fast = actual.map; full = expected.map;
+    }
+  }
+});
+
+test('incremental API falls back for raw, fractional and profile-incompatible input', () => {
+  for (const kind of ['steep', 'fractional', 'unreachable']) {
+    const original = map(17, 11);
+    original.heights[5] = kind === 'steep' ? 20 : kind === 'fractional' ? 0.5 : 100;
+    const brush = { x: 4, y: 3, radius: 2, amount: 3, tool: 'raise' as const };
+    const fast = applyBrushIncremental(original, P, brush), full = applyBrush(original, P, brush);
+    assert.equal(fast.incremental, false); assert.deepEqual(fast.map.heights, full.map.heights);
+    assert.equal(fast.changed, full.changed);
+  }
+  const original = map(3, 3, 30), brush = { x: 1, y: 1, radius: 1, amount: 1, tool: 'lower' as const };
+  assert.equal(applyBrushIncremental(original, P, brush).incremental, true);
+  assert.equal(applyBrushIncremental(original, { ...P, max: 10 }, brush).incremental, false);
+  for (const [width, height] of [[1, 9], [9, 1], [1, 1]]) {
+    const m = map(width, height);
+    const b = { ...brush, x: 0, y: 0 };
+    assert.deepEqual(applyBrushIncremental(m, P, b).map.heights, applyBrush(m, P, b).map.heights);
+  }
+  assert.throws(() => applyBrushIncremental(map(4, 4), P, { ...brush, x: NaN }));
+});
+
+test('incremental no-op preserves immutable object and still validates brushes', () => {
+  const original = map(101, 83);
+  const brush = { x: 50, y: 41, radius: 2, amount: 1, tool: 'raise' as const, target: 0 };
+  const result = applyBrushIncremental(original, P, brush);
+  assert.equal(result.map, original); assert.equal(result.changed, 0);
+  assert.equal(result.bounds, null); assert.equal(result.changedIndices.length, 0);
+  for (const invalid of [{ ...brush, radius: 0 }, { ...brush, amount: -1 }, { ...brush, target: 0.5 }]) assert.throws(() => applyBrushIncremental(original, P, invalid));
+});
+
+test('incremental halo contains maximum-height cones at crop boundaries for legacy factors and slopes', () => {
+  for (const mode of ['linear', 'clamp', 'legacy-small', 'legacy-large'] as Mode[]) for (const factor of [1, 2] as const) for (const maxSlope of [1, 2] as const) {
+    const p = { ...P, mode, factor, maxSlope };
+    const lo = decodeSample(0, p), hi = decodeSample(255, p);
+    const reach = Math.ceil((hi - lo) / maxSlope), width = 4 * reach + 17, height = 2 * reach + 9;
+    for (const direction of ['raise', 'lower'] as const) for (const tool of [direction, 'flatten'] as const) for (const location of ['middle', 'edge'] as const) {
+      const initial = map(width, height, direction === 'raise' ? lo : hi);
+      const target = direction === 'raise' ? hi : lo;
+      const x = location === 'edge' ? 0 : Math.floor(width / 2), y = Math.floor(height / 2);
+      const brush = { x, y, radius: 0.1, amount: hi - lo, tool, target };
+      const expected = applyBrush(initial, p, brush), actual = applyBrushIncremental(initial, p, brush);
+      assert.equal(actual.incremental, true);
+      assert.deepEqual(actual.map.heights, expected.map.heights, `${mode}/factor${factor}/slope${maxSlope}/${tool}/${direction}/${location}`);
+      assert.equal(actual.changed, expected.changed);
+      assert.equal(actual.map.heights[y * width + x], target);
+      // The outermost unchanged samples straddle the finite cone's boundary;
+      // a crop that truncates propagation by even one cell fails full equality.
+      for (const offset of [-reach - 1, reach + 1]) {
+        const sx = x + offset;
+        if (sx >= 0 && sx < width) assert.equal(actual.map.heights[y * width + sx], initial.heights[y * width + sx]);
+      }
+      assert.deepEqual(toGrid(actual.map, p), toGrid(expected.map, p));
     }
   }
 });

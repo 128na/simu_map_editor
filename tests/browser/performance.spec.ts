@@ -46,4 +46,5 @@ for(const size of sizes) test(`operation performance ${size}`,async({page,browse
  result.memory=await page.evaluate(()=>{const m=(performance as any).memory;return m?{usedJSHeapSize:m.usedJSHeapSize,totalJSHeapSize:m.totalJSHeapSize,jsHeapSizeLimit:m.jsHeapSizeLimit}:null;});
  mkdirSync(resolve('.validation'),{recursive:true});writeFileSync(resolve(`.validation/operations-${info.project.name}-${size}.json`),JSON.stringify(result,null,2));
  console.log(JSON.stringify(result));
+ if(process.env.DRAG_BUDGET_MS&&size===4096){const budget=Number(process.env.DRAG_BUDGET_MS);expect(Number.isFinite(budget)&&budget>0).toBe(true);expect(result.dragMs).toBeLessThanOrEqual(budget);}
 });

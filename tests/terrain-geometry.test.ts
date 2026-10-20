@@ -29,3 +29,42 @@ test('edits before a render preserve every pending GPU upload range',()=>{
  for(const name of ['position','color','normal'])for(const index of [2*(w+1)+2,28*(w+1)+28])
   assert.ok((g.getAttribute(name) as BufferAttribute).updateRanges.some(r=>r.start<=index*3&&r.start+r.count>=index*3+3),`${name}/${index}`);
 });
+
+test('explicit dirty bounds match full geometry and leave unrelated buffers untouched',()=>{
+ const w=37,h=21;let grid=Int16Array.from({length:(w+1)*(h+1)},(_,i)=>(i*13)%7-3);
+ const geometry=terrainGeometry(grid,w,h,0);
+ for(const [x0,y0,x1,y1] of [[0,0,0,0],[w,h,w,h],[8,4,12,7],[0,9,1,12],[w-1,0,w,1]]){
+  const before=Object.fromEntries(['position','color','normal'].map(name=>[name,geometry.getAttribute(name).array.slice()]));
+  for(const name of ['position','color','normal'])(geometry.getAttribute(name) as BufferAttribute).clearUpdateRanges();
+  const next=grid.slice();
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)next[y*(w+1)+x]+=2;
+  terrainGeometry(next,w,h,0,geometry,grid,0,{x0,y0,x1,y1});
+  const full=terrainGeometry(next,w,h,0);
+  for(const name of ['position','color','normal']){
+   const actual=geometry.getAttribute(name).array,expected=full.getAttribute(name).array,padding=name==='normal'?1:0;
+   for(let y=0;y<=h;y++)for(let x=0;x<=w;x++)for(let c=0;c<3;c++){
+    const i=(y*(w+1)+x)*3+c;
+    assert.ok(Math.abs(actual[i]-expected[i])<1e-6,`${name}/${x}/${y}/${c}`);
+    if(x<x0-padding||x>x1+padding||y<y0-padding||y>y1+padding)assert.equal(actual[i],before[name][i],`unrelated ${name}/${i}`);
+   }
+   for(const r of (geometry.getAttribute(name) as BufferAttribute).updateRanges){
+    for(let i=r.start;i<r.start+r.count;i+=3){const vertex=i/3,x=vertex%(w+1),y=Math.floor(vertex/(w+1));assert.ok(x>=Math.max(0,x0-padding)&&x<=Math.min(w,x1+padding)&&y>=Math.max(0,y0-padding)&&y<=Math.min(h,y1+padding));}
+   }
+  }
+  grid=next;full.dispose();
+ }
+ geometry.dispose();
+});
+
+test('sea and dimension changes ignore dirty bounds; dirty updates retain pending ranges',()=>{
+ const w=8,h=5,a=new Int16Array((w+1)*(h+1)),geometry=terrainGeometry(a,w,h,-1),dirty={x0:1,y0:1,x1:1,y1:1};
+ for(const name of ['position','color','normal'])(geometry.getAttribute(name) as BufferAttribute).clearUpdateRanges();
+ const b=a.slice();b[w+2]=3;terrainGeometry(b,w,h,-1,geometry,a,-1,dirty);
+ const c=b.slice();c[4*(w+1)+6]=2;terrainGeometry(c,w,h,-1,geometry,b,-1,{x0:6,y0:4,x1:6,y1:4});
+ for(const name of ['position','color','normal'])for(const index of [w+2,4*(w+1)+6])assert.ok((geometry.getAttribute(name) as BufferAttribute).updateRanges.some(r=>r.start<=index*3&&r.start+r.count>=index*3+3));
+ terrainGeometry(c,w,h,2,geometry,c,-1,dirty);
+ const fresh=terrainGeometry(c,w,h,2);assert.deepEqual(geometry.getAttribute('color').array,fresh.getAttribute('color').array);
+ const resized=terrainGeometry(new Int16Array(4),1,1,0,geometry,c,2,dirty);
+ assert.notEqual(resized,geometry);assert.equal(resized.getAttribute('position').count,4);
+ geometry.dispose();fresh.dispose();resized.dispose();
+});
