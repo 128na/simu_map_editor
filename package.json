@@ -15,7 +15,9 @@
     "dev": "vite --host 127.0.0.1",
     "validate:prototype": "npm run validate:heightmaps && npm test && npm run build && npm run test:browser",
     "build": "npm run typecheck && vite build",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "benchmark:cpu": "node --experimental-strip-types tools/validation/benchmark-cpu.mjs",
+    "benchmark:browser": "playwright test --config playwright.perf.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

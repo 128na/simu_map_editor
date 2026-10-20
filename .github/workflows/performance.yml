@@ -1,0 +1,38 @@
+name: browser-performance
+on:
+  workflow_dispatch:
+    inputs:
+      size:
+        description: Map edge length (software rendering; large maps need more memory)
+        type: choice
+        options: ['1024', '2048', '4096']
+        default: '1024'
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VALIDATE_OPERATIONS: '1'
+      PERF_SIZES: ${{ inputs.size }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run benchmark:browser
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: browser-performance-${{ inputs.size }}-${{ github.sha }}
+          path: |
+            .validation/operations-*.json
+            .validation/performance-browser-results.json
+            .validation/performance-artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+          include-hidden-files: true

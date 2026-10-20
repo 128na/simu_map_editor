@@ -33,6 +33,19 @@ powershell -NoProfile -File tools/validation/run-world-probe.ps1
 
 ブラウザテストにはインストール済みのChromeとEdgeが必要です。ゲーム全体の検証には追加でpakset・実行用データ・CMake/Ninja等が必要です。再現条件と検証の限界は [試作の検証記録](docs/records/2026-10-20_browser-prototype-validation.md) を参照してください。
 
+## 性能計測
+
+`npm run benchmark:cpu` は256・512・1024四方の造成をウォームアップ後5回計測し、`.validation/cpu-performance.json` を保存します。push・PRのCIでも実行し、結果を30日間保存します。現在は計測記録のみで、速度の閾値による失敗判定はありません。
+
+実機での操作計測はPowerShellで実行します。
+
+```powershell
+$env:VALIDATE_OPERATIONS='1'
+npm run test:browser -- --grep 'operation performance' --project chrome
+```
+
+標準は1024・2048・4096四方です。`PERF_SIZES` 環境変数でカンマ区切りのサイズを指定できます。GitHub Actionsの `browser-performance` は手動起動でサイズを選択し、Playwright Chromiumで計測します。通常ランナーの描画結果をローカルGPUの速度と直接比較しないでください。CIと同じ専用設定は `npx playwright install chromium` 後に `npm run benchmark:browser` で実行できます（`VALIDATE_OPERATIONS=1` が必要）。
+
 ## ドキュメント
 
 ドキュメントは [docs/README.md](docs/README.md) の規約に従います。初期調査は `docs/records/`、意思決定は `docs/adr/` に保存し、調査の続報は新しい記録として追加します。

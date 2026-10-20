@@ -20,3 +20,12 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - run: npm run benchmark:cpu
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: cpu-performance-${{ github.sha }}
+          path: .validation/cpu-performance.json
+          if-no-files-found: warn
+          retention-days: 30
+          include-hidden-files: true
