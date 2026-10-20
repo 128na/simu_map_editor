@@ -27,9 +27,15 @@ test('disk undo locks editing while loading and failed reads preserve map and cu
   await stroke(page);await settled(page);const edited=await snapshot(page);
   expect((await state(page)).queuedBytes).toBe(0);
   await page.evaluate(()=>(window as any).__validation.setHistoryFault({readDelayMs:1000,failRead:true}));
-  await page.locator('#undo').click();await expect.poll(async()=>(await state(page)).reading).toBe(true);
-  await expect(page.locator('#redo')).toBeDisabled();await expect(page.locator('#create')).toBeDisabled();
-  expect(await stroke(page,22)).not.toBe('');
+  // Capture the lock and rejected edit in the same task as Undo starts:
+  // slow software rendering must not consume the injected delay between checks.
+  const locked=await page.evaluate(()=>{
+    const api=(window as any).__validation;
+    document.getElementById('undo')!.click();
+    let error='';try{api.stroke({x:22,y:8,radius:1,amount:1,tool:'raise'});}catch(e){error=String(e);}
+    return {reading:api.getHistoryState().reading,redoDisabled:(document.getElementById('redo') as HTMLButtonElement).disabled,createDisabled:(document.getElementById('create') as HTMLButtonElement).disabled,error};
+  });
+  expect(locked.reading).toBe(true);expect(locked.redoDisabled).toBe(true);expect(locked.createDisabled).toBe(true);expect(locked.error).not.toBe('');
   await expect.poll(async()=>(await state(page)).reading).toBe(false);
   expect((await snapshot(page)).heights).toEqual(edited.heights);expect((await state(page)).undoCount).toBe(1);
   await page.evaluate(()=>(window as any).__validation.setHistoryFault({}));await page.locator('#undo').click();
