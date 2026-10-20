@@ -112,6 +112,15 @@ export function toGrid(map: Heightmap, p: Profile): Int16Array {
   // Native construction duplicates source edges before normalizing slopes.
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) grid[y * w + x] = table[samples[Math.min(y, map.height - 1) * map.width + Math.min(x, map.width - 1)]] + 1;
   envelope(grid, w, h, p.maxSlope, true);
+  // The full render-grid conversion already proves normalization. Cache that
+  // proof for immutable sources instead of scanning every neighbor again on
+  // the first brush event of a newly created/imported map.
+  let legal = true;
+  check: for (let y=0;y<map.height;y++) for (let x=0;x<map.width;x++) {
+    const i=y*map.width+x,value=map.heights[i];
+    if(table[samples[i]]!==value || grid[y*w+x]!==value+1){legal=false;break check;}
+  }
+  if(legal)rememberLegal(map,profileKey(p));
   return Int16Array.from(grid);
 }
 export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: number; radius: number; amount: number; tool: 'raise' | 'lower' | 'flatten' | 'smooth'; target?: number; from?: { x: number; y: number } }): { map: Heightmap; changed: number } {

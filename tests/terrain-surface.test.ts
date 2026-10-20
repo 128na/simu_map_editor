@@ -19,20 +19,24 @@ test('chunk geometry covers rectangular odd boundaries and samples exact world g
    assert.equal(position.getY(i),grid[y*(w+1)+x]);
   }
   const index=geometry.getIndex()!;
-  assert.equal(index.count/3,geometry.userData.topTriangles+2*(2*(geometry.userData.x1-geometry.userData.x0+geometry.userData.y1-geometry.userData.y0)));
+  const bounds=geometry.userData;
+  const horizontal=(bounds.y0>0?1:0)+(bounds.y1<h?1:0),vertical=(bounds.x0>0?1:0)+(bounds.x1<w?1:0);
+  assert.equal(index.count/3,geometry.userData.topTriangles+2*(horizontal*(bounds.x1-bounds.x0)+vertical*(bounds.y1-bounds.y0)));
  }
  assert.equal(topTriangles,w*h*2);assert.equal(samples.size,(w+1)*(h+1));assert.ok(samples.has('9,5'));
  surface.dispose();shared.dispose();
 });
 
-test('dirty updates retain distant chunks, update border normals and dispose only replaced buffers',()=>{
+test('dirty updates retain every geometry and buffer while updating border normals',()=>{
  const shared=material(),surface=new TerrainSurface(shared,{chunkSize:4}),w=12,h=8;
  const initial=new Int16Array((w+1)*(h+1));surface.update(initial,w,h,0);
- const before=chunks(surface).map(mesh=>mesh.geometry),disposed=new Set<THREE.BufferGeometry>();for(const geometry of before)geometry.addEventListener('dispose',()=>disposed.add(geometry));
+ const before=chunks(surface).map(mesh=>mesh.geometry),arrays=chunks(surface).map(mesh=>Object.values(mesh.geometry.attributes).map(a=>a.array)),disposed=new Set<THREE.BufferGeometry>();for(const geometry of before)geometry.addEventListener('dispose',()=>disposed.add(geometry));
  const changed=initial.slice();changed[2*(w+1)+4]=1;
  surface.update(changed,w,h,0,{x0:4,y0:2,x1:4,y1:2});
  const after=chunks(surface).map(mesh=>mesh.geometry);
- assert.notEqual(after[0],before[0]);assert.notEqual(after[1],before[1]);assert.equal(after[2],before[2]);assert.equal(after[3],before[3]);assert.deepEqual(disposed,new Set(before.slice(0,2)));
+ assert.deepEqual(after,before);assert.equal(disposed.size,0);
+ for(let i=0;i<after.length;i++)for(const [k,a] of Object.values(after[i].attributes).entries())assert.equal(a.array,arrays[i][k]);
+ assert.ok((after[0].getAttribute('position') as THREE.BufferAttribute).updateRanges.length>0);assert.equal((after[2].getAttribute('position') as THREE.BufferAttribute).updateRanges.length,0);
  // Both chunks use the same full-grid derivative at their shared x=4 edge.
  const first=after[0].getAttribute('normal'),second=after[1].getAttribute('normal');
  assert.deepEqual([first.getX(14),first.getY(14),first.getZ(14)],[second.getX(10),second.getY(10),second.getZ(10)]);
@@ -71,4 +75,49 @@ test('large dimensions use a bounded overview, preserve focus normals and leave 
  assert.throws(()=>surface.update(new Int16Array(3),w,h,0));assert.deepEqual(chunks(surface).map(mesh=>mesh.geometry),previous);
  surface.update(new Int16Array(6),2,1,0);assert.equal(disposed,25);assert.equal(surface.metrics.chunkCount,1);
  surface.dispose();assert.equal(surface.children.length,0);assert.equal(surface.metrics.geometryBytes,0);assert.equal(materialDisposed,false);shared.dispose();
+});
+
+test('a flat 128 map has no outside skirt or vertices below its actual height',()=>{
+ const shared=material(),surface=new TerrainSurface(shared),w=128,h=128;
+ surface.update(new Int16Array((w+1)*(h+1)).fill(1),w,h,-2);
+ const mesh=chunks(surface)[0],position=mesh.geometry.getAttribute('position');
+ assert.equal(mesh.geometry.boundingBox!.min.y,1);assert.equal(mesh.geometry.boundingBox!.max.y,1);
+ assert.equal(position.count,(w+1)*(h+1));assert.equal(mesh.geometry.getIndex()!.count,w*h*6);
+ for(let i=0;i<position.count;i++)assert.equal(position.getY(i),1);
+ surface.dispose();shared.dispose();
+});
+
+test('all skirt faces lie on internal chunk boundaries rather than the map exterior',()=>{
+ const shared=material(),surface=new TerrainSurface(shared,{chunkSize:4,cellBudget:8}),w=9,h=5;
+ surface.update(new Int16Array((w+1)*(h+1)).fill(1),w,h,-2);surface.focus(4,4,1);
+ let skirtCount=0;
+ for(const mesh of chunks(surface)){
+  const geometry=mesh.geometry,position=geometry.getAttribute('position'),normal=geometry.getAttribute('normal');
+  for(let i=geometry.userData.topVertexCount;i<position.count;i+=2){
+   const x=position.getX(i)+w/2,y=position.getZ(i)+h/2;skirtCount++;
+   if(normal.getX(i)!==0)assert.ok(x>0&&x<w);
+   if(normal.getZ(i)!==0)assert.ok(y>0&&y<h);
+   assert.equal(position.getY(i+1),-256);
+  }
+ }
+ assert.ok(skirtCount>0);surface.dispose();shared.dispose();
+});
+
+test('partial sampled heights colors normals and skirts equal a fresh full rebuild',()=>{
+ const shared=material(),surface=new TerrainSurface(shared,{chunkSize:8,cellBudget:64}),full=new TerrainSurface(shared,{chunkSize:8,cellBudget:64}),w=25,h=17;
+ let grid=Int16Array.from({length:(w+1)*(h+1)},(_,i)=>(i*7)%13-6);
+ surface.update(grid,w,h,-2);surface.focus(8,8,2);full.focus(8,8,2);
+ for(const [x,y] of [[8,8],[0,0],[w,h],[16,9],[11,4],[24,8]]){
+  const next=grid.slice();next[y*(w+1)+x]+=2;
+  const previousGeometries=chunks(surface).map(mesh=>mesh.geometry);
+  surface.update(next,w,h,-2,{x0:x,y0:y,x1:x,y1:y});full.update(next,w,h,-2);
+  for(let i=0;i<surface.children.length;i++){
+   const actual=chunks(surface)[i].geometry,expected=chunks(full)[i].geometry;
+   assert.equal(actual,previousGeometries[i]);
+   for(const name of ['position','color','normal'])assert.deepEqual(actual.getAttribute(name).array,expected.getAttribute(name).array,`${name}/${x}/${y}/${i}`);
+   assert.deepEqual(actual.getIndex()!.array,expected.getIndex()!.array);
+  }
+  grid=next;
+ }
+ surface.dispose();full.dispose();shared.dispose();
 });

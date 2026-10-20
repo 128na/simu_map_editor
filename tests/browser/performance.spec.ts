@@ -41,6 +41,7 @@ for(const size of sizes) test(`operation performance ${size}`,async({page,browse
  for(const p of points.slice(1))await page.mouse.move(p.x,p.y);
  await page.mouse.up();await expect(page.locator('#status')).toContainText('固定標高',{timeout:180000});
  result.dragMs=Date.now()-t;result.dragInputPoints=points.length;
+ result.interactionUpdates=await page.evaluate(()=>(window as any).__validation.getInteractionUpdates());
  const box=(await page.locator('canvas').boundingBox())!;
  const rotateStart=Date.now();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down({button:'right'});await page.mouse.move(box.x+box.width/2+100,box.y+box.height/2+30,{steps:10});await page.mouse.up({button:'right'});result.rotateMs=Date.now()-rotateStart;
  result.frameIntervals=await page.evaluate(async()=>{const times:number[]=[];let last=performance.now();for(let i=0;i<30;i++){await new Promise<void>(r=>requestAnimationFrame(()=>r()));const now=performance.now();times.push(now-last);last=now;}return times.slice(1);});

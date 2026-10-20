@@ -54,6 +54,8 @@ $env:VALIDATE_OPERATIONS='1'
 npm run test:browser -- --grep 'operation performance' --project chrome
 ```
 
+連続ドラッグ中の1更新ごとのCPU待ち時間は、`VALIDATE_INTERACTION=1` を設定して `npm run test:browser -- --grep 'continuous sculpting' --project chrome` で計測できます。`.validation/interaction-*.json` に初回・中央値・95%点と処理内訳を保存します。`--repeat-each 3` で試行を分け、`INTERACTION_BASELINE_REF` に比較元コミットSHAを指定すると、旧版の地形処理・描画モジュールを同じ画面操作で比較します。これはローカルGPUでの応答計測で、操作全体の時間や見た目のfpsとは別の指標です。従来の操作計測JSONにも更新内訳を追加保存します。
+
 ローカルGPUで4096四方のドラッグ目標を検証する場合は、追加で `$env:DRAG_BUDGET_MS='1000'` を設定します。1秒の判定は指定時だけ有効です。標準は1024・2048・4096四方です。`PERF_SIZES` 環境変数でカンマ区切りのサイズを指定できます。GitHub Actionsの `browser-performance` は手動起動でサイズを選択し、Playwright Chromiumで計測します。通常ランナーの描画結果をローカルGPUの速度と直接比較しないでください。CIと同じ専用設定は `npx playwright install chromium` 後に `npm run benchmark:browser` で実行できます（`VALIDATE_OPERATIONS=1` が必要）。
 
 mainへのpushとmainでの手動ブラウザ計測が成功すると、[性能記録Issue](https://github.com/128na/simu_map_editor/issues/1) に結果表とJSONをコメントします。PRからは投稿しません。成果物が期限切れになっても、コメント内の生データから再集計できます。同一の計測種別・CI実行ID・再実行番号は二重投稿せず、再実行番号が異なる測定は別記録として残します。

@@ -293,3 +293,15 @@ test('higher smoothing strength repeats relaxation and remains locally equivalen
   assert.deepEqual(strong.map.heights,full.map.heights);
   constrained(strong.map);
 });
+
+test('render-grid legality cache rejects distant fractional and steep sources outside the brush crop',()=>{
+ const legal=map(128,128),steep=map(128,128),fractional=map(128,128);
+ steep.heights[0]=8;fractional.heights[0]=.5;
+ for(const [index,original] of [legal,steep,fractional].entries()){
+  toGrid(original,P);
+  const brush={x:100,y:100,radius:1,amount:1,tool:'raise' as const};
+  const actual=applyBrushIncremental(original,P,brush);
+  assert.equal(actual.incremental,index===0);
+  assert.deepEqual(actual.map.heights,applyBrush(original,P,brush).map.heights);
+ }
+});
