@@ -29,6 +29,25 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
           include-hidden-files: true
+  browser-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --config playwright.ci.config.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: browser-regression-failure-${{ github.sha }}
+          path: .validation/ci-browser-artifacts/
+          include-hidden-files: true
+          retention-days: 7
   record-performance:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: docs-lint
