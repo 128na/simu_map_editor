@@ -158,3 +158,79 @@ test('unrepresentable heights are reported before and during BMP export',async({
   await page.locator('#undo').click();
   expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(before.heights);
 });
+
+test('drag holds its first height across sparse moves and is a single undo operation',async({page})=>{
+  await page.locator('#mode').selectOption('clamp');
+  await page.evaluate(()=>(window as any).__validation.setMap({width:32,height:16,heights:new Float32Array(512)}));
+  await page.locator('#radius').fill('1');await page.locator('#amount').fill('2');await page.locator('#top').click();
+  await page.waitForTimeout(150);
+  const [start,end]=await page.evaluate(()=>[4,27].map(x=>(window as any).__validation.projectSample(x,8)));
+  await page.mouse.move(start.x,start.y);await page.mouse.down();
+  await page.mouse.move(end.x,end.y,{steps:3});await page.mouse.move(start.x,start.y,{steps:2});await page.mouse.up();
+  const raised=await page.evaluate(()=>(window as any).__validation.getSnapshot());
+  for(let x=4;x<=27;x++)expect(raised.heights[x+8*32],`column ${x}`).toBe(2);
+  expect(raised.undoCount).toBe(1);await expect(page.locator('#dragHeight')).toHaveText('3');
+  await page.locator('#undo').click();expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(new Array(512).fill(0));
+  await page.locator('#redo').click();expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(raised.heights);
+  // Cancelling rolls back the whole in-progress drag without making another history entry.
+  const point=await page.evaluate(()=>(window as any).__validation.projectSample(15,8));
+  await page.mouse.move(point.x,point.y);await page.mouse.down();await page.keyboard.press('Escape');await page.mouse.up();
+  const cancelled=await page.evaluate(()=>(window as any).__validation.getSnapshot());
+  expect(cancelled.heights).toEqual(raised.heights);expect(cancelled.undoCount).toBe(1);
+});
+
+test('flatten dragging samples the start height and right-drag rotates without editing',async({page})=>{
+  await page.locator('#mode').selectOption('clamp');
+  await page.evaluate(()=>(window as any).__validation.setMap({width:32,height:16,heights:Float32Array.from({length:512},(_,i)=>Math.floor((i%32)/4))}));
+  await page.locator('#tool').selectOption('flatten');await page.locator('#radius').fill('1');await page.locator('#top').click();await page.waitForTimeout(150);
+  const [start,end]=await page.evaluate(()=>[5,27].map(x=>(window as any).__validation.projectSample(x,8)));
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:3});await page.mouse.up();
+  const flattened=await page.evaluate(()=>(window as any).__validation.getSnapshot());
+  for(let x=5;x<=27;x++)expect(flattened.heights[x+8*32],`column ${x}`).toBe(1);
+  expect(flattened.undoCount).toBe(1);
+  await page.mouse.move(start.x,start.y);await page.mouse.down({button:'right'});await page.mouse.move(start.x+100,start.y+60,{steps:5});await page.mouse.up({button:'right'});
+  const rotated=await page.evaluate(()=>(window as any).__validation.getSnapshot());expect(rotated.heights).toEqual(flattened.heights);expect(rotated.undoCount).toBe(1);
+});
+
+test('water avoids sea-level ground and stays a single clipped surface while rotating',async({page},info)=>{
+  const errors:string[]=[];page.on('pageerror',e=>errors.push(String(e)));
+  await page.evaluate(()=>(window as any).__validation.setMap({width:32,height:32,heights:new Float32Array(1024).fill(-3)}));
+  expect((await page.evaluate(()=>(window as any).__validation.getMetrics())).waterTriangles).toBe(0);
+  await page.evaluate(()=>(window as any).__validation.setMap({width:32,height:32,heights:Float32Array.from({length:1024},(_,i)=>i%32<16?-5:-2)}));
+  const before=await page.evaluate(()=>(window as any).__validation.getMetrics());expect(before.waterTriangles).toBeGreaterThan(0);
+  const canvas=page.locator('#viewport canvas'),box=(await canvas.boundingBox())!;
+  for(let turn=0;turn<3;turn++){
+    await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.down({button:'right'});await page.mouse.move(box.x+box.width*.7,box.y+box.height*.55,{steps:8});await page.mouse.up({button:'right'});
+    await page.screenshot({path:join(output,`water-rotation-${info.project.name}-${turn}.png`)});
+  }
+  expect((await page.evaluate(()=>(window as any).__validation.getMetrics())).waterTriangles).toBe(before.waterTriangles);expect(errors).toEqual([]);
+});
+
+test('same-frame turns and reversals retain every drag segment before pointerup',async({page})=>{
+  await page.locator('#mode').selectOption('clamp');
+  await page.evaluate(()=>(window as any).__validation.setMap({width:32,height:32,heights:new Float32Array(1024)}));
+  await page.locator('#radius').fill('1');await page.locator('#top').click();await page.waitForTimeout(100);
+  const points=await page.evaluate(()=>[[4,4],[27,4],[27,27]].map(([x,y])=>(window as any).__validation.projectSample(x,y)));
+  await page.mouse.move(points[0].x,points[0].y);await page.mouse.down();
+  await page.evaluate(points=>{
+    const canvas=document.querySelector('canvas')!;
+    for(const p of [points[1],points[2],points[0]])canvas.dispatchEvent(new PointerEvent('pointermove',{pointerId:1,pointerType:'mouse',buttons:1,clientX:p.x,clientY:p.y,bubbles:true}));
+    canvas.dispatchEvent(new PointerEvent('pointerup',{pointerId:1,pointerType:'mouse',button:0,buttons:0,clientX:points[0].x,clientY:points[0].y,bubbles:true}));
+  },points);
+  await page.mouse.up();
+  const result=await page.evaluate(()=>(window as any).__validation.getSnapshot());
+  for(let x=4;x<=27;x++)expect(result.heights[x+4*32]).toBe(1);
+  for(let y=4;y<=27;y++)expect(result.heights[27+y*32]).toBe(1);
+  expect(result.undoCount).toBe(1);
+});
+
+test('excessively intricate water refuses allocation without replacing the current terrain',async({page})=>{
+  await page.locator('#mode').selectOption('clamp');await page.locator('#maxSlope').selectOption('2');await page.locator('#seaLevel').fill('0');await page.locator('#seaLevel').dispatchEvent('change');
+  const before=await page.evaluate(()=>(window as any).__validation.getSnapshot());
+  const error=await page.evaluate(()=>{
+    try{(window as any).__validation.setMap({width:512,height:512,heights:Float32Array.from({length:512*512},(_,i)=>(Math.floor(i/512)+i%512)%2?-2:0)});return '';}
+    catch(error){return String(error);}
+  });
+  expect(error).toContain('16');
+  const after=await page.evaluate(()=>(window as any).__validation.getSnapshot());expect(after.heights).toEqual(before.heights);expect(after.grid).toEqual(before.grid);expect(after.width).toBe(before.width);
+});

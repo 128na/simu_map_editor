@@ -99,3 +99,15 @@ test('resource and malformed input limits reject before allocating terrain', () 
   assert.throws(() => toGrid(map(2, 2), { ...P, max: 200 }));
   assert.throws(() => toGrid(map(2, 2), { ...P, max: 126 }));
 });
+
+test('fixed target segments paint continuously without accumulating height on overlaps',()=>{
+  const p={...P,mode:'clamp' as const};
+  const initial={width:24,height:8,heights:new Float32Array(24*8)};
+  const first=applyBrush(initial,p,{x:2,y:4,radius:1,amount:1,tool:'raise',target:2});
+  const drag=applyBrush(first.map,p,{x:21,y:4,from:{x:2,y:4},radius:1,amount:1,tool:'raise',target:2});
+  const overlap=applyBrush(drag.map,p,{x:2,y:4,from:{x:21,y:4},radius:1,amount:1,tool:'raise',target:2});
+  for(let x=2;x<=21;x++)assert.equal(overlap.map.heights[x+4*24],2);
+  assert.deepEqual(initial.heights,new Float32Array(24*8));
+  const lower=applyBrush(overlap.map,p,{x:21,y:4,from:{x:2,y:4},radius:1,amount:1,tool:'lower',target:1});
+  for(let x=2;x<=21;x++)assert.equal(lower.map.heights[x+4*24],1);
+});

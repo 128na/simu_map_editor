@@ -78,15 +78,21 @@ export function toGrid(map: Heightmap, p: Profile): Int16Array {
   envelope(grid, w, h, p.maxSlope, true);
   return Int16Array.from(grid);
 }
-export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: number; radius: number; amount: number; tool: 'raise' | 'lower' | 'flatten'; target?: number }): { map: Heightmap; changed: number } {
+export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: number; radius: number; amount: number; tool: 'raise' | 'lower' | 'flatten'; target?: number; from?: { x: number; y: number } }): { map: Heightmap; changed: number } {
   const base = baseline(map, p);
   if (![brush.x, brush.y, brush.radius, brush.amount].every(Number.isFinite) || brush.radius <= 0 || brush.amount < 0 || !['raise', 'lower', 'flatten'].includes(brush.tool)) throw new Error('Invalid brush');
+  if (brush.from && ![brush.from.x,brush.from.y].every(Number.isFinite)) throw new Error('Invalid brush path');
+  if (brush.target !== undefined && (!Number.isInteger(brush.target) || !Array.from({length:256},(_,i)=>decodeSample(i,p)).includes(brush.target))) throw new Error('Brush target is not representable');
   const heights = base.slice(), selected: number[] = [];
-  for (let y = Math.max(0,Math.ceil(brush.y-brush.radius)); y <= Math.min(map.height-1,Math.floor(brush.y+brush.radius)); y++)
-    for (let x = Math.max(0,Math.ceil(brush.x-brush.radius)); x <= Math.min(map.width-1,Math.floor(brush.x+brush.radius)); x++)
-      if ((x-brush.x)**2+(y-brush.y)**2 <= brush.radius**2) selected.push(y*map.width+x);
-  // An empty or zero-strength stroke must not canonicalize an imported map.
-  if (selected.length === 0 || (brush.tool !== 'flatten' && Math.round(brush.amount) === 0)) return { map: { ...map, heights: map.heights.slice() }, changed: 0 };
+  const from=brush.from ?? brush, dx=brush.x-from.x, dy=brush.y-from.y, lengthSquared=dx*dx+dy*dy;
+  for (let y=Math.max(0,Math.ceil(Math.min(from.y,brush.y)-brush.radius));y<=Math.min(map.height-1,Math.floor(Math.max(from.y,brush.y)+brush.radius));y++) {
+    for (let x=Math.max(0,Math.ceil(Math.min(from.x,brush.x)-brush.radius));x<=Math.min(map.width-1,Math.floor(Math.max(from.x,brush.x)+brush.radius));x++) {
+      const t=lengthSquared ? clamp(((x-from.x)*dx+(y-from.y)*dy)/lengthSquared,0,1) : 0;
+      if((x-from.x-t*dx)**2+(y-from.y-t*dy)**2<=brush.radius**2) selected.push(y*map.width+x);
+    }
+  }
+  // A segment paints every crossed sample, even when pointer events are sparse.
+  if (selected.length===0 || (brush.tool!=='flatten' && brush.target===undefined && Math.round(brush.amount)===0)) return {map:{...map,heights:map.heights.slice()},changed:0};
   if (brush.tool === 'flatten') {
     const target = brush.target;
     if (target === undefined || !Number.isInteger(target) || !Array.from({ length: 256 }, (_, i) => decodeSample(i, p)).includes(target)) throw new Error('Flatten target is not representable');
@@ -97,7 +103,9 @@ export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: nu
     for (let i = 0; i < heights.length; i++) heights[i] = clamp(base[i], lower[i], upper[i]);
   } else {
     const lo = decodeSample(0, p), hi = decodeSample(255, p);
-    for (const i of selected) heights[i] = clamp(base[i] + (brush.tool === 'raise' ? 1 : -1) * Math.round(brush.amount), lo, hi);
+        for (const i of selected) heights[i] = brush.target === undefined
+      ? clamp(base[i]+(brush.tool==='raise'?1:-1)*Math.round(brush.amount),lo,hi)
+      : brush.tool==='raise' ? Math.max(base[i],brush.target) : Math.min(base[i],brush.target);
     envelope(heights, map.width, map.height, p.maxSlope, brush.tool === 'raise');
   }
   let changed = 0;
