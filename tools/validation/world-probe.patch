@@ -1,0 +1,57 @@
+diff --git a/src/simutrans/simmain.cc b/src/simutrans/simmain.cc
+index 152cf4e16..916fa5773 100644
+--- a/src/simutrans/simmain.cc
++++ b/src/simutrans/simmain.cc
+@@ -1515,6 +1515,34 @@ int simu_main(int argc, char** argv)
+ 		}
+ 	}
+ 
++	if (const char* input = args.gimme_arg("-validation-heightmap", 1)) {
++		settings_t sets = env_t::default_settings;
++		sets.set_city_count(0);
++		sets.set_factory_count(0);
++		sets.set_tourist_attractions(0);
++		sets.set_tree_distribution(settings_t::TREE_DIST_NONE);
++		sets.set_lakeheight(sets.get_groundwater());
++		env_t::river_types = 0;
++		env_t::autosave = 0;
++		if (const char* mode = args.gimme_arg("-validation-mode", 1)) {
++			env_t::height_conv_mode = (env_t::height_conversion_mode)atoi(mode);
++		}
++		sets.heightfield = input;
++		welt->load_heightfield(&sets);
++		const char* output = args.gimme_arg("-validation-output", 1);
++		FILE* f = output ? fopen(output, "wb") : NULL;
++		if (!f) return EXIT_FAILURE;
++		const int w = welt->get_size().x, h = welt->get_size().y;
++		fprintf(f, "{\"sourceCommit\":\"af90444e4\",\"input\":\"%s\",\"width\":%d,\"height\":%d,\"minimumHeight\":%d,\"maximumHeight\":%d,\"factor\":%d,\"doubleSlopes\":%s,\"mode\":%d,\"seaLevel\":%d,\"beachesEnabled\":true,\"grid\":[", input, w, h, sets.get_minimumheight(), sets.get_maximumheight(), env_t::pak_height_conversion_factor, ground_desc_t::double_grounds ? "true" : "false", (int)env_t::height_conv_mode, welt->get_groundwater());
++		for (int y = 0; y <= h; y++) for (int x = 0; x <= w; x++) fprintf(f, "%s%d", (x || y) ? "," : "", (int)welt->lookup_hgt(koord(x,y)));
++		fprintf(f, "],\"water\":[");
++		for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) fprintf(f, "%s%s", (x || y) ? "," : "", welt->lookup_kartenboden(koord(x,y))->is_water() ? "true" : "false");
++		fprintf(f, "],\"waterHeights\":[");
++		for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) fprintf(f, "%s%d", (x || y) ? "," : "", (int)welt->get_water_hgt(koord(x,y)));
++		fprintf(f, "]}\n");
++		fclose(f);
++		return EXIT_SUCCESS;
++	}
+ 	if(  scen == NULL  &&  (loadgame==""  ||  !welt->load(loadgame.c_str()))  ) {
+ 		// create a default map
+ 		DBG_MESSAGE("simu_main()", "Init with default map (failing will be a pak error!)");
+diff --git a/src/simutrans/world/simworld.cc b/src/simutrans/world/simworld.cc
+index feb504011..7ae05271f 100644
+--- a/src/simutrans/world/simworld.cc
++++ b/src/simutrans/world/simworld.cc
+@@ -1866,6 +1866,13 @@ void karte_t::enlarge_map(settings_t const* sets, sint8 const* const h_field)
+ 		ls.set_progress(14);
+ 	}
+ 
++	if (const char* out = getenv("SIMUTRANS_VALIDATION_PREBEACH")) {
++		if (FILE* f = fopen(out, "wb")) {
++			fprintf(f, "[");
++			for (int y = 0; y <= get_size().y; y++) for (int x = 0; x <= get_size().x; x++) fprintf(f, "%s%d", (x || y) ? "," : "", (int)lookup_hgt(koord(x,y)));
++			fprintf(f, "]\n"); fclose(f);
++		}
++	}
+ 	create_beaches( old_size.x, old_size.y );
+ 	if (  new_world  ) {
+ 		ls.set_progress(15);

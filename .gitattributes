@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+# Unified patch context preserves a space before original tabs and blank lines.
+*.patch whitespace=-blank-at-eol,-space-before-tab

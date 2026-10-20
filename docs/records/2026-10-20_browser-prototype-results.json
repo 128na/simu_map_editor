@@ -1,0 +1,77 @@
+{
+  "scope": "Prototype validation on local Windows Chrome and Edge; observations are not portable performance guarantees.",
+  "unitTests": 16,
+  "browsers": [
+    {
+      "name": "chrome",
+      "nativeComparison": {
+        "browser": "chrome",
+        "matchedCases": 227,
+        "unsupported16bitRejected": true
+      },
+      "brushComparison": {
+        "browser": "chrome",
+        "matchedCases": 24
+      },
+      "performance": {
+        "loadMs": 505.80000000074506,
+        "brushMs": 611.8000000007451,
+        "frameMedianMs": 0.09999999962747097,
+        "frameP95Ms": 0.30000000074505806,
+        "triangles": 2097152,
+        "geometryBytes": 62988324,
+        "drawCalls": 3,
+        "renderedTriangles": 2097156,
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "webgl2": true,
+        "workerBytes": 4194304,
+        "transferMs": 57.30000000074506,
+        "usedJSHeapBytes": 165883108,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8078.4 Safari/537.36",
+        "hardwareConcurrency": 24
+      }
+    },
+    {
+      "name": "edge",
+      "nativeComparison": {
+        "browser": "edge",
+        "matchedCases": 227,
+        "unsupported16bitRejected": true
+      },
+      "brushComparison": {
+        "browser": "edge",
+        "matchedCases": 24
+      },
+      "performance": {
+        "loadMs": 533.4000000003725,
+        "brushMs": 647.8999999985099,
+        "frameMedianMs": 0.19999999925494194,
+        "frameP95Ms": 0.5,
+        "triangles": 2097152,
+        "geometryBytes": 62988324,
+        "drawCalls": 3,
+        "renderedTriangles": 2097156,
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "webgl2": true,
+        "workerBytes": 4194304,
+        "transferMs": 65.80000000074506,
+        "usedJSHeapBytes": 206906558,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.8078.4 Safari/537.36 Edg/156.0.8078.4",
+        "hardwareConcurrency": 24
+      }
+    }
+  ],
+  "e2e": {
+    "expected": 12,
+    "unexpected": 0,
+    "skipped": 0,
+    "flaky": 0
+  },
+  "limitations": [
+    "No sustained FPS measurement",
+    "Render timings exclude requestAnimationFrame waiting",
+    "Worker timing includes startup and transfer roundtrip, not an integrated worker terrain pipeline",
+    "reported JS heap is neither peak memory nor total CPU/GPU memory",
+    "Single-click prototype; full geometry rebuild on every edit"
+  ]
+}
