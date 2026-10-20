@@ -114,9 +114,9 @@ export function toGrid(map: Heightmap, p: Profile): Int16Array {
   envelope(grid, w, h, p.maxSlope, true);
   return Int16Array.from(grid);
 }
-export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: number; radius: number; amount: number; tool: 'raise' | 'lower' | 'flatten'; target?: number; from?: { x: number; y: number } }): { map: Heightmap; changed: number } {
+export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: number; radius: number; amount: number; tool: 'raise' | 'lower' | 'flatten' | 'smooth'; target?: number; from?: { x: number; y: number } }): { map: Heightmap; changed: number } {
   const base = baseline(map, p);
-  if (![brush.x, brush.y, brush.radius, brush.amount].every(Number.isFinite) || brush.radius <= 0 || brush.amount < 0 || !['raise', 'lower', 'flatten'].includes(brush.tool)) throw new Error('Invalid brush');
+  if (![brush.x, brush.y, brush.radius, brush.amount].every(Number.isFinite) || brush.radius <= 0 || brush.amount < 0 || !['raise', 'lower', 'flatten', 'smooth'].includes(brush.tool)) throw new Error('Invalid brush');
   if (brush.from && ![brush.from.x,brush.from.y].every(Number.isFinite)) throw new Error('Invalid brush path');
   if (brush.target !== undefined && (!Number.isInteger(brush.target) || !Array.from({length:256},(_,i)=>decodeSample(i,p)).includes(brush.target))) throw new Error('Brush target is not representable');
   const heights = base.slice(), selected: number[] = [];
@@ -137,6 +137,25 @@ export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: nu
     envelope(lower, map.width, map.height, p.maxSlope, true);
     envelope(upper, map.width, map.height, p.maxSlope, false);
     for (let i = 0; i < heights.length; i++) heights[i] = clamp(base[i], lower[i], upper[i]);
+  } else if (brush.tool === 'smooth') {
+    // Each pass reads a fixed snapshot. Even strength 1 removes one-step
+    // isolated bumps; higher strengths repeat relaxation without fractional
+    // height state that would conflict with the exported integer terrain.
+    const passes = clamp(Math.round(brush.amount), 0, 8);
+    for (let pass = 0; pass < passes; pass++) {
+      const previous = pass === 0 ? base : heights.slice();
+      for (const i of selected) {
+        const x = i % map.width, y = Math.floor(i / map.width);
+        let sum = 0, count = 0;
+        for (let ny = Math.max(0, y - 1); ny <= Math.min(map.height - 1, y + 1); ny++) {
+          for (let nx = Math.max(0, x - 1); nx <= Math.min(map.width - 1, x + 1); nx++) { sum += previous[ny * map.width + nx]; count++; }
+        }
+        heights[i] = Math.round(sum / count) || 0;
+      }
+      // Slopes are repaired after every pass, keeping the full and cropped
+      // paths identical and limiting influence to the existing cone halo.
+      envelope(heights, map.width, map.height, p.maxSlope, true);
+    }
   } else {
     const lo = decodeSample(0, p), hi = decodeSample(255, p);
         for (const i of selected) heights[i] = brush.target === undefined

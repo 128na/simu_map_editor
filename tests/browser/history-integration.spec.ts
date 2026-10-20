@@ -7,6 +7,7 @@ test.beforeEach(async({page})=>{
   page.on('dialog',dialog=>dialog.accept());
   await page.goto('/?validate=1');await page.waitForFunction(()=>!!(window as any).__validation?.configureHistory);
   await page.locator('#mode').selectOption('clamp');
+  await page.locator('#historySettings > summary').click();
   await page.evaluate(()=>{const api=(window as any).__validation;api.setMap({width:32,height:32,heights:new Float32Array(1024)});api.configureHistory({ramBudgetBytes:1024*1024,diskBudgetBytes:1024*1024,maxEntries:100});});
 });
 

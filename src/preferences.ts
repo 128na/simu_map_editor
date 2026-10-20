@@ -1,10 +1,11 @@
 /** Map-independent preferences only; terrain and compatibility settings belong to the map. */
 export interface Preferences {
   version: 1;
-  tool: 'raise' | 'lower' | 'flatten';
+  tool: 'raise' | 'lower' | 'flatten' | 'smooth';
   radius: number;
   amount: number;
   view: 'oblique' | 'top';
+  grid?: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
@@ -21,10 +22,11 @@ function normalize(value: unknown): Preferences {
     typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max ? value : fallback;
   return {
     version: 1,
-    tool: candidate.tool === 'raise' || candidate.tool === 'lower' || candidate.tool === 'flatten'
+    tool: candidate.tool === 'raise' || candidate.tool === 'lower' || candidate.tool === 'flatten' || candidate.tool === 'smooth'
       ? candidate.tool : DEFAULT_PREFERENCES.tool,
     radius: integer(candidate.radius, 1, 40, DEFAULT_PREFERENCES.radius),
     amount: integer(candidate.amount, 1, 8, DEFAULT_PREFERENCES.amount),
+    ...(typeof candidate.grid==='boolean'?{grid:candidate.grid}:{}),
     view: candidate.view === 'oblique' || candidate.view === 'top' ? candidate.view : DEFAULT_PREFERENCES.view,
   };
 }

@@ -152,7 +152,7 @@ test('incremental brush sequences equal full normalization including bounds and 
     const p = { ...P, mode, maxSlope };
     let fast = map(151, 113, decodeSample(128, p)), full = fast;
     for (let step = 0; step < 18; step++) {
-      const tool = (['raise', 'lower', 'flatten'] as const)[step % 3];
+      const tool = (['raise', 'lower', 'flatten', 'smooth'] as const)[step % 4];
       const brush = { x: step % 4 === 0 ? 0 : (step * 31) % 151, y: step % 5 === 0 ? 112 : (step * 19) % 113, radius: 2.4, amount: 4, tool, ...(tool === 'flatten' ? { target: decodeSample(180, p) } : {}), ...(step % 4 === 3 ? { from: { x: 6, y: 7 } } : {}) };
       const expected = applyBrush(full, p, brush), actual = applyBrushIncremental(fast, p, brush);
       assert.equal(actual.incremental, true);
@@ -239,4 +239,57 @@ test('import normalization reports stages, preserves input and is stable on rect
   assert.deepEqual([...result.map.heights],[30,31,31,30,31,32]);
   assert.equal(normalizeImport(result.map,p).changed,0);
   assert.deepEqual([...toGrid(result.map,p)],[31,32,32,32,31,32,33,33,31,32,33,33]);
+});
+
+
+test('smoothing lowers peaks and fills pits with strength, preserving source and distant samples', () => {
+  for (const sign of [-1, 1]) {
+    const original = map(101, 101);
+    original.heights[50 * 101 + 50] = sign;
+    const saved = original.heights.slice();
+    const brush = {x:50,y:50,radius:0.1,tool:'smooth' as const};
+    const weak = applyBrush(original, P, {...brush,amount:1});
+    const strong = applyBrushIncremental(original, P, {...brush,amount:8});
+    assert.equal(weak.map.heights[50 * 101 + 50], 0);
+    assert.equal(strong.map.heights[50 * 101 + 50], 0);
+    assert.equal(strong.changed, 1);
+    assert.deepEqual(original.heights, saved);
+    assert.equal(strong.map.heights[0], 0);
+    constrained(strong.map);
+    const reloaded = {...strong.map, heights:Float32Array.from(encodeSamples(strong.map,P),v=>decodeSample(v,P))};
+    assert.deepEqual(toGrid(reloaded,P),toGrid(strong.map,P));
+  }
+});
+
+test('smoothing clips neighborhoods at edges, handles segments and keeps both slope limits', () => {
+  for (const maxSlope of [1,2] as const) {
+    const p = {...P,maxSlope};
+    for (const [width,height] of [[1,1],[1,103],[103,1],[103,101]]) {
+      const original = map(width,height);
+      for (let y=0;y<height;y++) for(let x=0;x<width;x++) original.heights[y*width+x] = ((x+y)%2)*maxSlope;
+      const brush = {x:Math.min(width-1,85),y:Math.min(height-1,83),from:{x:0,y:0},radius:1.2,amount:8,tool:'smooth' as const};
+      const full = applyBrush(original,p,brush), fast = applyBrushIncremental(original,p,brush);
+      assert.equal(fast.incremental,true);
+      assert.deepEqual(fast.map.heights,full.map.heights);
+      assert.equal(fast.changed,full.changed);
+      constrained(fast.map,maxSlope);
+      assert.ok([...fast.map.heights].every(Number.isInteger));
+      assert.deepEqual(toGrid(fast.map,p),toGrid(full.map,p));
+    }
+  }
+});
+
+
+test('higher smoothing strength repeats relaxation and remains locally equivalent', () => {
+  const original = map(121,117);
+  // A legal square plateau: one pass rounds its corners, later passes remove
+  // more of the plateau, making strength meaningful even with integer heights.
+  for(let y=56;y<=58;y++) for(let x=59;x<=61;x++) original.heights[y*121+x]=1;
+  const brush = {x:60,y:57,radius:10,tool:'smooth' as const};
+  const weak = applyBrush(original,P,{...brush,amount:1});
+  const strong = applyBrushIncremental(original,P,{...brush,amount:8});
+  const full = applyBrush(original,P,{...brush,amount:8});
+  assert.ok(strong.changed > weak.changed);
+  assert.deepEqual(strong.map.heights,full.map.heights);
+  constrained(strong.map);
 });

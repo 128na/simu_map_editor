@@ -45,3 +45,9 @@ test('saving validates inputs and excludes terrain or unrelated properties', () 
     {setItem: (_key, value) => {serialized = value;}});
   assert.deepEqual(JSON.parse(serialized), {...DEFAULT_PREFERENCES, tool: 'lower', amount: 2, view: 'top'});
 });
+
+test('smoothing and optional grid preference round trip without invalid grid values', () => {
+  assert.deepEqual(read({version:1,tool:'smooth',radius:8,amount:1,view:'top',grid:true}),
+    {...DEFAULT_PREFERENCES,tool:'smooth',view:'top',grid:true});
+  assert.equal(read({version:1,grid:'true'}).grid,undefined);
+});
