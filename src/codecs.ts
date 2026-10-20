@@ -201,3 +201,21 @@ export function exportBmp(map: Heightmap, profile: Profile): Uint8Array {
   }
   return data;
 }
+
+/** Encode raw 8-bit grayscale samples, without canvas color conversion or metadata. */
+export async function exportPng(map:Heightmap, profile:Profile):Promise<Uint8Array> {
+  const samples=encodeSamples(map,profile);
+  const rows=new Uint8Array((map.width+1)*map.height);
+  for(let y=0;y<map.height;y++)rows.set(samples.subarray(y*map.width,(y+1)*map.width),y*(map.width+1)+1);
+  const compressed=new Uint8Array(await new Response(new Blob([rows.buffer]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  const chunk=(type:string,body:Uint8Array)=>{
+    const bytes=new Uint8Array(body.length+12),view=new DataView(bytes.buffer);
+    view.setUint32(0,body.length);for(let i=0;i<4;i++)bytes[4+i]=type.charCodeAt(i);
+    bytes.set(body,8);view.setUint32(body.length+8,crc32(bytes.subarray(4,body.length+8)));return bytes;
+  };
+  const header=new Uint8Array(13),view=new DataView(header.buffer);
+  view.setUint32(0,map.width);view.setUint32(4,map.height);header[8]=8;
+  const chunks=[Uint8Array.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',compressed),chunk('IEND',new Uint8Array())];
+  const bytes=new Uint8Array(chunks.reduce((sum,c)=>sum+c.length,0));let offset=0;
+  for(const part of chunks){bytes.set(part,offset);offset+=part.length;}return bytes;
+}

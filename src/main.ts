@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DEFAULT_PROFILE, decodeSample, toGrid, applyBrush, applyBrushIncremental, type DirtyBounds, quantizationReport, normalizeImport, validateDimensions, type Heightmap, type Profile } from './terrain';
-import { importHeightmap, exportBmp } from './codecs';
+import { importHeightmap, exportBmp, exportPng } from './codecs';
 import { createWaterMesh } from './water';
 import { intersectTerrain } from './picking';
 import { terrainGeometry } from './terrain-geometry';
@@ -153,7 +153,21 @@ input('file').addEventListener('change',async()=>{
  }catch(error){status(String(error),true);}
  finally{setBusy(false);input('file').value='';}
 });
-el('export').addEventListener('click',()=>{try{const bytes=exportBmp(map,profile);const url=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:'image/bmp'}));const anchor=document.createElement('a');anchor.href=url;anchor.download=exportName;anchor.click();savedRevision=revision();setTimeout(()=>URL.revokeObjectURL(url),10000);status(`BMPを書き出しました。${quantizationText()} 互換設定を合わせて確認してください。`);}catch(error){status(String(error),true);}});
+async function downloadMap(format:'bmp'|'png'){
+ if(busy)return;
+ const source=map,compatibility=profile,exportedRevision=revision();
+ setBusy(true);status(`${format.toUpperCase()}を書き出しています…`);
+ try{
+  const bytes=format==='png'?await exportPng(source,compatibility):exportBmp(source,compatibility);
+  const url=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:`image/${format}`}));
+  try{const anchor=document.createElement('a');anchor.href=url;anchor.download=exportName.replace(/\.[^.]+$/,`.${format}`);anchor.click();savedRevision=exportedRevision;}
+  finally{setTimeout(()=>URL.revokeObjectURL(url),10000);}
+  status(`${format.toUpperCase()}を書き出しました。${quantizationText()} 互換設定を合わせて確認してください。`);
+ }catch(error){status(String(error),true);}
+ finally{setBusy(false);}
+}
+el('export').addEventListener('click',()=>void downloadMap('bmp'));
+el('exportPng').addEventListener('click',()=>void downloadMap('png'));
 async function moveHistory(redo=false){
  if(busy||history.getState().reading)return;
  setBusy(true);status('履歴を読み込み中…');

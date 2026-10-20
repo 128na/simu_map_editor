@@ -311,3 +311,17 @@ test('import correction warning can be canceled and normalized source exports wi
   expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).grid).toEqual(corrected.grid);
   expect(await page.evaluate(()=>(window as any).__validation.getHistoryState().dirty)).toBe(false);
 });
+
+test('exported PNG matches native Simutrans grid for all supported profiles',async({page},info)=>{
+ for(const mode of modes)for(const factor of [1,2])for(const maxSlope of [1,2]){
+  const profile={mode,min:-12,max:32,factor,maxSlope,seaLevel:-2};
+  const result=await page.evaluate(async profile=>{
+   const c='/src/codecs.ts',t='/src/terrain.ts';const codec=await import(c),terrain=await import(t);
+   const source={width:7,height:5,heights:Float32Array.from({length:35},(_,i)=>(i%7-Math.floor(i/7))*2-7)};
+   const map=terrain.normalizeImport(source,profile).map;const bytes=await codec.exportPng(map,profile);
+   return {bytes:Array.from(bytes),grid:Array.from(terrain.toGrid(map,profile))};
+  },profile);
+  const path=join(output,`png-export-${info.project.name}-${mode}-${factor}-${maxSlope}.png`);writeFileSync(path,Uint8Array.from(result.bytes));
+  expect(native(path,profile).grid).toEqual(result.grid);
+ }
+});
