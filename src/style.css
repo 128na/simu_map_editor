@@ -3,3 +3,5 @@
 @media(max-width:540px){main{grid-template-columns:160px minmax(300px,1fr);overflow:auto}.document-panel{grid-template-columns:1fr;max-height:35dvh}.tools-panel{padding:10px}header{min-width:460px}.row{gap:4px}button{padding:7px 4px}#cursorPosition{font-size:11px}}
 
 [hidden]{display:none!important}
+
+.header-links{display:flex;align-items:center;gap:16px}.header-links a{color:#b5e5ce;font-size:13px;white-space:nowrap;text-underline-offset:3px}.header-links a:hover{color:#e1eee8}
