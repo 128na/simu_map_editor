@@ -16,6 +16,7 @@ import { editorLayout } from './editor-layout';
 import { installEditorInput } from './editor-input';
 import { loadPreferences, savePreferences } from './preferences';
 import {loadEditorSettings,saveEditorSettings,validateSettings,type EditorSettings} from './editor-settings';
+import {DemandRenderer} from './demand-renderer';
 import './style.css';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = editorLayout;
@@ -44,6 +45,8 @@ const readBudget=(key:string,allowed:number[],fallback:number)=>{try{const value
 let ramBudgetMiB=readBudget('simu-history-ram-mib',[16,64,256],64),diskBudgetMiB=readBudget('simu-history-disk-mib',[128,512,1024],512);
 let historyOptions:HistoryOptions={ramBudgetBytes:ramBudgetMiB*1048576,diskBudgetBytes:diskBudgetMiB*1048576,maxEntries:1000};
 let busy = false;
+let renderLoop:DemandRenderer|undefined;
+const invalidate=()=>renderLoop?.invalidate();
 const clone = (m: Heightmap): Heightmap => ({width:m.width,height:m.height,heights:m.heights.slice()});
 function updateDocumentState(){const dirty=hasUnsavedChanges();el('documentState').textContent=`${documentName} · ${map.width} × ${map.height}${dirty?' · 未保存':''}`;document.title=`${dirty?'* ':''}${documentName} — Simu Map Editor`;}
 const status = (text:string,error=false) => { updateDocumentState(); el('status').textContent=text;el('status').classList.toggle('error',error); };
@@ -130,7 +133,7 @@ function rebuild(next=map,nextProfile=profile,edit?:Edit){
  geometryBytes=terrain.metrics.geometryBytes+nextWater.metrics.geometryBytes;
  el('metrics').textContent=`${w} × ${h}タイル / ${(w+1)} × ${(h+1)}頂点\n${(w*h*2).toLocaleString()}三角形（元データ） / 表示間隔 ${terrain.metrics.stride}タイル / ${terrain.metrics.chunkCount}分割 / メッシュ ${(geometryBytes/1048576).toFixed(1)} MiB（CPU配列のみ）`;
  lastTimings={...lastTimings,gridMs:gridDone-start,quantizationAndWaterMs:waterDone-gridDone,geometryMs:performance.now()-waterDone,rebuildMs:performance.now()-start};
- historyButtons();
+ historyButtons();invalidate();
 }
 function view(top=preferences.view==='top'){const size=Math.max(8,map.width,map.height);controls.target.set(0,0,0);camera.position.set(top?0:size*.7,top?size*1.4:size*.85,top?.001:size*.85);camera.near=Math.max(.5,size/1000);camera.far=Math.max(200,size*6);camera.updateProjectionMatrix();controls.update();scheduleViewDetail();}
 function setMap(next:Heightmap){if(history.getState().reading||gesture)throw new Error('履歴読込・造成中は地図を置き換えられません');validateDimensions(next.width,next.height);if(next.heights.length!==next.width*next.height||!next.heights.every(Number.isFinite))throw new Error('画像寸法または標高データが不正です');rebuild(clone(next));resetHistory();view();hoverScreen=null;cursorReadout(null);}
@@ -239,7 +242,7 @@ syncProfile();
 for(const id of profileFields)el(id).addEventListener('change',()=>changeProfile({mode:el<HTMLSelectElement>('mode').value as Profile['mode'],factor:Number(input('factor').value) as 1|2,maxSlope:Number(input('maxSlope').value) as 1|2,seaLevel:Number(input('seaLevel').value),min:Number(input('min').value),max:Number(input('max').value)}));
 el('profilePreset').addEventListener('change',()=>{const preset=PROFILE_PRESETS.find(p=>p.id===input('profilePreset').value);if(preset)changeProfile({...preset.profile});});
 input('gridToggle').checked=preferences.grid??false;
-input('gridToggle').addEventListener('change',()=>{gridEnabled.value=input('gridToggle').checked;preferences.grid=gridEnabled.value;savePreferences(preferences);});
+input('gridToggle').addEventListener('change',()=>{gridEnabled.value=input('gridToggle').checked;preferences.grid=gridEnabled.value;savePreferences(preferences);invalidate();});
 for(const id of ['tool','radius','amount'] as const){
  input(id).value=String(preferences[id]);
  el(id).addEventListener('change',()=>{
@@ -268,11 +271,11 @@ el('applySettings').addEventListener('click',()=>{
  }catch(error){status(String(error),true);syncSettings();}
 });
 let viewDetailTimer:ReturnType<typeof setTimeout>|undefined;
-function scheduleViewDetail(){clearTimeout(viewDetailTimer);viewDetailTimer=setTimeout(()=>{if(gesture){scheduleViewDetail();return;}try{terrain?.setView(camera,viewport.clientHeight);refreshMetrics();}catch(error){status(String(error),true);}},120);}
-controls.addEventListener('change',scheduleViewDetail);
+function scheduleViewDetail(){clearTimeout(viewDetailTimer);viewDetailTimer=setTimeout(()=>{if(gesture){scheduleViewDetail();return;}try{terrain?.setView(camera,viewport.clientHeight);refreshMetrics();invalidate();}catch(error){status(String(error),true);}},120);}
+controls.addEventListener('change',()=>{scheduleViewDetail();invalidate();});
 function refreshMetrics(){if(!terrain||!water)return;const w=map.width,h=map.height;geometryBytes=terrain.metrics.geometryBytes+water.metrics.geometryBytes;el('metrics').textContent=`${w} × ${h}タイル / ${(w+1)} × ${(h+1)}頂点\n表示セル ${terrain.metrics.regularCells.toLocaleString()} / 予算 ${terrain.metrics.cellBudget.toLocaleString()} / メッシュ ${(geometryBytes/1048576).toFixed(1)} MiB\n水面 ${(water.metrics.geometryBytes/1048576).toFixed(1)} / ${(water.metrics.budgetBytes/1048576).toFixed(0)} MiB`;}
 el('radiusValue').textContent=String(preferences.radius);
-input('radius').addEventListener('input',()=>{el('radiusValue').textContent=input('radius').value;indicator.scale.setScalar(Number(input('radius').value));});el('top').addEventListener('click',()=>{preferences.view='top';savePreferences(preferences);view(true);});el('oblique').addEventListener('click',()=>{preferences.view='oblique';savePreferences(preferences);view(false);});
+input('radius').addEventListener('input',()=>{el('radiusValue').textContent=input('radius').value;indicator.scale.setScalar(Number(input('radius').value));invalidate();});el('top').addEventListener('click',()=>{preferences.view='top';savePreferences(preferences);view(true);});el('oblique').addEventListener('click',()=>{preferences.view='oblique';savePreferences(preferences);view(false);});
 const raycaster=new THREE.Raycaster();
 const pointer=new THREE.Vector2();
 type Point={x:number;y:number};
@@ -344,6 +347,7 @@ function flushPointers(){
  cancelAnimationFrame(paintFrame);paintFrame=0;const pending=pendingPointers;pendingPointers=[];
  pendingEdit=null;let next=map;for(const point of pending)next=paintPointer(point,next);
  if(next!==map){rebuild(next,profile,pendingEdit??undefined);recordInteraction('move',started,pending.length);}
+ invalidate();
 }
 function finishGesture(cancel=false){
  if(!gesture)return;
@@ -373,7 +377,7 @@ renderer.domElement.addEventListener('pointerdown',event=>{
  el('dragHeight').textContent=options.target===undefined?'平滑化':String(options.target+1);
  gesture={id:event.pointerId,before:map,session:createBrushSession(map,profile),last:null,options,changed:new Set<number>(),screen:{clientX:event.clientX,clientY:event.clientY},at};
  controls.enabled=false;setBusy(true);renderer.domElement.setPointerCapture(event.pointerId);
- try{const started=performance.now();batchCoreMs=0;pendingEdit=null;const next=paintPointer(event);if(next!==map){rebuild(next,profile,pendingEdit??undefined);recordInteraction('start',started,1);}status(options.tool==='smooth'?'平滑化中（離すと1操作として確定）':`ドラッグ造成中: 表示標高 ${(options.target??0)+1} に固定（静止長押しで連続増減）`);scheduleHold();}
+ try{const started=performance.now();batchCoreMs=0;pendingEdit=null;const next=paintPointer(event);if(next!==map){rebuild(next,profile,pendingEdit??undefined);recordInteraction('start',started,1);}status(options.tool==='smooth'?'平滑化中（離すと1操作として確定）':`ドラッグ造成中: 表示標高 ${(options.target??0)+1} に固定（静止長押しで連続増減）`);scheduleHold();invalidate();}
  catch(error){finishGesture(true);status(String(error),true);}
 });
 renderer.domElement.addEventListener('pointermove',event=>{
@@ -394,16 +398,23 @@ renderer.domElement.addEventListener('pointerup',event=>{
 });
 renderer.domElement.addEventListener('pointercancel',event=>{if(gesture?.id===event.pointerId)finishGesture(true);});
 renderer.domElement.addEventListener('lostpointercapture',event=>{if(gesture?.id===event.pointerId)finishGesture(true);});
-renderer.domElement.addEventListener('pointerleave',()=>{indicator.visible=false;hoverScreen=null;cursorReadout(null);stopHold();});
+renderer.domElement.addEventListener('pointerleave',()=>{indicator.visible=false;hoverScreen=null;cursorReadout(null);stopHold();invalidate();});
 window.addEventListener('blur',()=>finishGesture(true));
 const editorInput=installEditorInput({
  canvas:renderer.domElement,camera,target:controls.target,
  blocked:()=>busy||gesture!==null||history.getState().reading,
  cancel:()=>finishGesture(true),view:()=>preferences.view,maxRadius:()=>settings.maxBrushRadius,
+ wake:invalidate,
  onPan:()=>{indicator.visible=false;hoverScreen=null;cursorReadout(null);},
 });
 
-new ResizeObserver(()=>{const width=viewport.clientWidth,height=viewport.clientHeight;renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();scheduleViewDetail();}).observe(viewport);
-let lastFrame=performance.now();
-function animate(){requestAnimationFrame(animate);const now=performance.now();editorInput.update(Math.min(.05,(now-lastFrame)/1000));lastFrame=now;controls.update();renderer.render(scene,camera);}rebuild();view();animate();status('128 × 128タイルの平坦な地形で開始しました。サイズを指定して新規作成するか、マップ画像を開いてください。');
+new ResizeObserver(()=>{const width=viewport.clientWidth,height=viewport.clientHeight;renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();scheduleViewDetail();invalidate();}).observe(viewport);
+renderLoop=new DemandRenderer({
+ update:seconds=>{const panned=editorInput.update(seconds);return controls.update()||panned;},
+ render:()=>renderer.render(scene,camera),
+});
+function visibilityChanged(){if(document.hidden)editorInput.clear();renderLoop!.setSuspended(document.hidden);}
+document.addEventListener('visibilitychange',visibilityChanged);
+renderer.domElement.addEventListener('webglcontextrestored',invalidate);
+visibilityChanged();rebuild();view();invalidate();status('128 × 128タイルの平坦な地形で開始しました。サイズを指定して新規作成するか、マップ画像を開いてください。');
 if(new URLSearchParams(location.search).has('validate')){const gl=renderer.getContext();const debug=gl.getExtension('WEBGL_debug_renderer_info');Object.assign(window,{__validation:{getEditorSettings:()=>({...settings}),getDisplayChunks:()=>terrain?.children.map(child=>{const g=(child as THREE.Mesh).geometry;return {x0:g.userData.x0,y0:g.userData.y0,x1:g.userData.x1,y1:g.userData.y1,stride:g.userData.stride,minHeight:g.boundingBox?.min.y,maxHeight:g.boundingBox?.max.y};}).map(({x0,y0,x1,y1,stride,minHeight,maxHeight})=>({x0,y0,x1,y1,stride,minHeight,maxHeight})),getInteractionUpdates:()=>interactionUpdates.map(value=>({...value})),resetInteractionUpdates:()=>{interactionUpdates.length=0;},getHistoryState:()=>({...history.getState(),paused:historyPaused,memoryOnly:memoryHistory,dirty:hasUnsavedChanges()}),waitHistory:()=>history.settled(),setHistoryFault:(fault:typeof historyFault)=>{historyFault={...fault};},configureHistory:(options:HistoryOptions)=>{if(history.getState().reading||gesture)throw new Error('History is busy');const old=history;historyOptions={...historyOptions,...options};memoryHistory=false;history=makeHistory();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];void old.dispose().catch(()=>{});historyButtons();},getTimings:()=>({...lastTimings}),projectSample:(x:number,y:number)=>{camera.updateMatrixWorld();const xi=Math.max(0,Math.min(map.width,Math.round(x))),yi=Math.max(0,Math.min(map.height,Math.round(y)));const v=new THREE.Vector3(x-map.width/2,grid[xi+yi*(map.width+1)],y-map.height/2).project(camera);const r=renderer.domElement.getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},getSnapshot:()=>({width:map.width,height:map.height,heights:Array.from(map.heights),grid:Array.from(grid),profile:{...profile},undoCount:history.getState().undoCount,redoCount:history.getState().redoCount}),setMap,stroke,getMetrics:()=>({displayStride:terrain?.metrics.stride,displayTriangles:terrain?.metrics.triangles,chunkCount:terrain?.metrics.chunkCount,displayCells:terrain?.metrics.regularCells,displayCellBudget:terrain?.metrics.cellBudget,viewAware:terrain?.metrics.viewAware,gridVisible:gridEnabled.value,triangles:map.width*map.height*2,geometryBytes:(terrain?.metrics.geometryBytes??0)+(water?.metrics.geometryBytes??0),waterTriangles:water?.metrics.triangles??0,waterGeometryBytes:water?.metrics.geometryBytes??0,waterBudgetBytes:water?.metrics.budgetBytes??0,drawCalls:renderer.info.render.calls,renderedTriangles:renderer.info.render.triangles,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),webgl2:gl instanceof WebGL2RenderingContext}),renderSample:async(frames=20)=>{const times:number[]=[];for(let i=0;i<frames;i++){await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return{frameMedianMs:times[Math.floor(times.length*.5)],frameP95Ms:times[Math.min(times.length-1,Math.floor(times.length*.95))]};}}});}

@@ -79,7 +79,7 @@ export function installEditorInput(options:EditorInputOptions){
   }
 
   const eventOptions={signal:listeners.signal};
-  window.addEventListener('keyup',event=>panKeys.delete(event.key),eventOptions);
+  window.addEventListener('keyup',event=>{if(panKeys.delete(event.key))wake();},eventOptions);
   window.addEventListener('blur',clear,eventOptions);
   window.addEventListener('focusin',clear,eventOptions);
   canvas.addEventListener('pointerdown',clear,eventOptions);
