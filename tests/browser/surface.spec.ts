@@ -9,18 +9,21 @@ test('startup flat terrain has no deep exterior walls',async({page},info)=>{
 
 
 test('chunked terrain has no deep lattice and recent edits retain detail away from cursor',async({page},info)=>{
+ // SwiftShader may take several seconds to return even a completed frame.
+ // This is a functional check; operation latency is measured separately.
+ test.setTimeout(180000);
  const errors:string[]=[];page.on('pageerror',e=>errors.push(String(e)));
  await page.goto('/?validate=1');await page.waitForFunction(()=>!!(window as any).__validation);
  await page.locator('#resourceSettings > summary').click();await page.locator('#displayCells').selectOption('1048576');await page.locator('#applySettings').click();
  await page.evaluate(()=>{const a=(window as any).__validation;a.setMap({width:1025,height:1025,heights:new Float32Array(1025*1025)});});
- await page.locator('#top').click();await expect.poll(async()=>(await page.evaluate(()=>(window as any).__validation.getMetrics())).viewAware).toBe(true);
- await expect.poll(async()=>{const c=await page.evaluate(()=>(window as any).__validation.getDisplayChunks());return c.filter((v:any)=>v.stride===1).length;}).toBeGreaterThan(4);
+ await page.locator('#top').click();await expect.poll(async()=>(await page.evaluate(()=>(window as any).__validation.getMetrics())).viewAware,{timeout:30000}).toBe(true);
+ await expect.poll(async()=>{const c=await page.evaluate(()=>(window as any).__validation.getDisplayChunks());return c.filter((v:any)=>v.stride===1).length;},{timeout:30000}).toBeGreaterThan(4);
  let chunks=await page.evaluate(()=>(window as any).__validation.getDisplayChunks());
  expect(chunks.length).toBeGreaterThan(1);expect(chunks.every((c:any)=>c.minHeight===1&&c.maxHeight===1)).toBe(true);
  await page.evaluate(()=>(window as any).__validation.stroke({x:270,y:270,radius:8,amount:3,tool:'raise'}));
  await page.locator('#top').click();
  const distant=await page.evaluate(()=>(window as any).__validation.projectSample(900,900));await page.mouse.move(distant.x,distant.y);
- await expect.poll(async()=>{const c=await page.evaluate(()=>(window as any).__validation.getDisplayChunks());return c.find((c:any)=>c.x0===256&&c.y0===256)?.stride;}).toBe(1);
+ await expect.poll(async()=>{const c=await page.evaluate(()=>(window as any).__validation.getDisplayChunks());return c.find((c:any)=>c.x0===256&&c.y0===256)?.stride;},{timeout:30000}).toBe(1);
  chunks=await page.evaluate(()=>(window as any).__validation.getDisplayChunks());expect(chunks.every((c:any)=>c.minHeight>=1)).toBe(true);
  await page.locator('#oblique').click();await page.screenshot({path:`.validation/chunk-seams-${info.project.name}.png`});expect(errors).toEqual([]);
 });
