@@ -21,7 +21,8 @@
     "benchmark:sustained": "playwright test --config playwright.sustained.config.ts",
     "performance:export": "node tools/validation/performance-history.mjs export",
     "preview": "vite preview --host 127.0.0.1",
-    "test:deployment": "playwright test --config playwright.deploy.config.ts"
+    "test:deployment": "playwright test --config playwright.deploy.config.ts",
+    "benchmark:image-io": "node tools/validation/benchmark-image-io.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

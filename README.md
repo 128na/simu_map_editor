@@ -102,6 +102,8 @@ npm run benchmark:sustained
 
 フレーム間隔はメインスレッドの応答指標で、描画fpsではありません。静止中は描画を休止します。JSヒープはGPU・Worker・多くのArrayBufferを含まない参考値で、総メモリやリークの有無を示しません。操作全体にはテストドライバの待機時間も含むため、同期処理時間と分けて評価してください。
 
+画像変換の計測は `npm run benchmark:image-io` で実行します。4096・8192四方の平坦地形についてBMP/PNGのWorker書出・読込・正規化を測り、`.validation/image-io-chrome.json` へ段階別時間・フレーム間隔・配列サイズの部分見積もりを保存します。通常CIでは実行しません。`IMAGE_IO_BROWSER=msedge` または `chromium` でブラウザを変更できます。ファイル選択・確認待ち・最終的な地形描画反映は計測外です。配列見積もりは同時使用量や総メモリの実測ではなく、PNG圧縮内部・GPU・Blobコピーなどを含みません。BMPの出力行と出力ファイルは同じ配列なので合算できません。
+
 ## ドキュメント
 
 ドキュメントは [docs/README.md](docs/README.md) の規約に従います。初期調査は `docs/records/`、意思決定は `docs/adr/` に保存し、調査の続報は新しい記録として追加します。
