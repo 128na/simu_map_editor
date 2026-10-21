@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {createWaterMesh,WATER_GEOMETRY_BUDGET_BYTES} from './water.ts';
+import {createWaterMesh,waterGeometryBudget,waterBudgetError} from './water.ts';
 import type {TerrainDirtyBounds} from './terrain-geometry.ts';
 
 type WaterMesh=THREE.Mesh<THREE.BufferGeometry,THREE.MeshStandardMaterial>;
@@ -7,7 +7,6 @@ interface Chunk {x0:number;y0:number;x1:number;y1:number;mesh:WaterMesh|null}
 const CHUNK_SIZE=256;
 const bytes=(mesh:WaterMesh|null)=>mesh?Object.values(mesh.geometry.attributes).reduce((sum,a)=>sum+a.array.byteLength,0):0;
 const release=(mesh:WaterMesh|null)=>{if(mesh){mesh.geometry.dispose();mesh.material.dispose();}};
-const budgetError=()=>new Error('海岸線が複雑すぎるため、水面メッシュのメモリ上限（CPU配列16 MiB）を超えます。画像を縮小するか、海面設定を変更してください。');
 
 /** Exact shoreline clipping, partitioned so an edit rebuilds only nearby cells. */
 export class WaterSurface extends THREE.Group {
@@ -37,6 +36,7 @@ export class WaterSurface extends THREE.Group {
   if(this.disposed)throw new Error('Water surface is disposed');
   if(!Number.isSafeInteger(w)||!Number.isSafeInteger(h)||w<1||h<1||grid.length!==(w+1)*(h+1)||!Number.isFinite(sea))throw new Error('Invalid water grid dimensions or sea level');
   if(dirty&&(![dirty.x0,dirty.x1,dirty.y0,dirty.y1].every(Number.isInteger)||dirty.x0<0||dirty.y0<0||dirty.x1>w||dirty.y1>h||dirty.x0>dirty.x1||dirty.y0>dirty.y1))throw new Error('Invalid water dirty bounds');
+  const budget=waterGeometryBudget(w,h);
   const full=!dirty||w!==this.width||h!==this.height||sea!==this.sea;
   const next=full?[] as Chunk[]:this.chunks.slice();
   const targets:{index:number;bounds:Omit<Chunk,'mesh'>}[]=[];
@@ -49,7 +49,7 @@ export class WaterSurface extends THREE.Group {
   const created:Chunk[]=[];
   let total=full?0:this.metrics.geometryBytes-targets.reduce((sum,t)=>sum+bytes(this.chunks[t.index].mesh),0);
   try{
-   for(const t of targets){const chunk=this.build(grid,w,h,sea,t.bounds);created.push(chunk);next[t.index]=chunk;total+=bytes(chunk.mesh);if(total>WATER_GEOMETRY_BUDGET_BYTES)throw budgetError();}
+   for(const t of targets){const chunk=this.build(grid,w,h,sea,t.bounds);created.push(chunk);next[t.index]=chunk;total+=bytes(chunk.mesh);if(total>budget)throw waterBudgetError(budget);}
   }catch(error){for(const c of created)release(c.mesh);throw error;}
   const generation=this.generation;
   let state:'pending'|'committed'|'disposed'='pending';
@@ -66,6 +66,6 @@ export class WaterSurface extends THREE.Group {
   };
  }
  get materials(){return this.chunks.flatMap(c=>c.mesh?[c.mesh.material]:[]);}
- get metrics(){let geometryBytes=0,triangles=0;for(const c of this.chunks)if(c.mesh){geometryBytes+=bytes(c.mesh);triangles+=c.mesh.geometry.getAttribute('position').count/3;}return {geometryBytes,triangles};}
+ get metrics(){let geometryBytes=0,triangles=0;for(const c of this.chunks)if(c.mesh){geometryBytes+=bytes(c.mesh);triangles+=c.mesh.geometry.getAttribute('position').count/3;}return {geometryBytes,triangles,budgetBytes:waterGeometryBudget(this.width||1,this.height||1)};}
  dispose(){if(this.disposed)return;for(const c of this.chunks)release(c.mesh);this.clear();this.chunks=[];this.disposed=true;this.generation++;}
 }

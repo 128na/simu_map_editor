@@ -20,7 +20,7 @@ test('8192 square remains editable and exportable with bounded terrain geometry'
  test.skip(!process.env.VALIDATE_LARGE_MAP,'Explicit large-memory validation');test.setTimeout(360000);
  page.on('dialog',d=>void d.accept());await page.locator('#newWidth').fill('8192');await page.locator('#newHeight').fill('8192');
  const start=Date.now();await page.locator('#create').click({timeout:180000});await expect(page.locator('#status')).toContainText('8192 × 8192',{timeout:180000});
- const metrics=await page.evaluate(()=>(window as any).__validation.getMetrics());expect(metrics.displayStride).toBe(8);expect(metrics.geometryBytes).toBeLessThan(128*1048576);
+ const metrics=await page.evaluate(()=>(window as any).__validation.getMetrics());expect(metrics.displayStride).toBe(8);expect(metrics.waterBudgetBytes).toBe(64*1048576);expect(metrics.geometryBytes).toBeLessThan(128*1048576);
  const edit=Date.now();await page.evaluate(()=>(window as any).__validation.stroke({x:4096,y:4096,radius:8,amount:1,tool:'raise'}));const editMs=Date.now()-edit;
  expect(await page.evaluate(()=>(window as any).__validation.getHistoryState().undoCount)).toBe(1);
  const point=await page.evaluate(()=>(window as any).__validation.projectSample(4096,4096));await page.mouse.move(point.x,point.y);
@@ -29,4 +29,23 @@ test('8192 square remains editable and exportable with bounded terrain geometry'
  const undo=Date.now();await page.locator('#undo').click();await expect(page.locator('#status')).toContainText('造成を元に戻しました',{timeout:120000});const undoMs=Date.now()-undo;
  const pending=page.waitForEvent('download');await page.locator('#exportPng').click();const download=await pending;expect(download.suggestedFilename()).toContain('.png');
  writeFileSync(`.validation/large-8192-${info.project.name}.json`,JSON.stringify({createMs:edit-start,editMs,undoMs,totalMs:Date.now()-start,metrics,detailMetrics},null,2));
+});
+
+
+test('8192 shoreline above the former water budget renders and remains editable',async({page},info)=>{
+ test.skip(!process.env.VALIDATE_LARGE_WATER,'Explicit large-memory water validation');test.setTimeout(180000);
+ page.on('dialog',d=>void d.accept());const errors:string[]=[];page.on('pageerror',e=>errors.push(String(e)));
+ await page.locator('#maxSlope').selectOption('2');await page.locator('#seaLevel').fill('0');await page.locator('#seaLevel').dispatchEvent('change');
+ await page.evaluate(()=>{
+  const w=8192,heights=new Float32Array(w*w);
+  for(let y=0;y<=512;y++)for(let x=0;x<=512;x++)heights[y*w+x]=(x+y)%2?-2:0;
+  (window as any).__validation.setMap({width:w,height:w,heights});
+ });
+ const before=await page.evaluate(()=>(window as any).__validation.getMetrics());
+ expect(before.waterGeometryBytes).toBeGreaterThan(16*1048576);expect(before.waterBudgetBytes).toBe(64*1048576);expect(before.waterGeometryBytes).toBeLessThan(before.waterBudgetBytes);
+ const frames=await page.evaluate(()=>(window as any).__validation.renderSample(2));expect(Number.isFinite(frames.frameMedianMs)).toBe(true);
+ await page.evaluate(()=>(window as any).__validation.stroke({x:600,y:600,radius:40,amount:8,tool:'lower'}));
+ expect((await page.evaluate(()=>(window as any).__validation.getHistoryState())).undoCount).toBe(1);
+ const after=await page.evaluate(()=>(window as any).__validation.getMetrics());expect(after.waterGeometryBytes).toBeLessThan(after.waterBudgetBytes);expect(errors).toEqual([]);
+ writeFileSync(`.validation/large-water-8192-${info.project.name}.json`,JSON.stringify({before,after,frames},null,2));
 });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { createWaterMesh, WATER_GEOMETRY_BUDGET_BYTES } from '../src/water.ts';
+import { createWaterMesh, WATER_GEOMETRY_BUDGET_BYTES, waterGeometryBudget } from '../src/water.ts';
 
 function surface(values: number[], w = 1, h = 1, sea = 0) {
   const mesh = createWaterMesh(Int16Array.from(values), w, h, sea);
@@ -71,7 +71,7 @@ test('complex coastline memory guard accepts 256-square but rejects 512-square c
     ((i % (size + 1)) + Math.floor(i / (size + 1))) % 2 ? 1 : -1);
   const mesh = createWaterMesh(checkerboard(256), 256, 256, 0);
   const bytes = mesh.geometry.getAttribute('position').array.byteLength + mesh.geometry.getAttribute('normal').array.byteLength;
-  assert.equal(bytes, 14_155_776);
+  assert.equal(bytes, 8_847_360);
   assert.ok(bytes <= WATER_GEOMETRY_BUDGET_BYTES);
   mesh.geometry.dispose(); mesh.material.dispose();
   assert.throws(() => createWaterMesh(checkerboard(512), 512, 512, 0), /CPU配列16 MiB/);
@@ -92,4 +92,22 @@ test('reject invalid grid size and sea values', () => {
     assert.throws(() => createWaterMesh(new Int16Array(4), w, h, 0));
   }
   assert.throws(() => createWaterMesh(new Int16Array(4), 1, 1, NaN));
+});
+
+
+test('water normals are exact upward normalized bytes and reduce geometry storage by 37.5 percent',()=>{
+ const mesh=createWaterMesh(Int16Array.from([-2,1,1,-2]),1,1,0);
+ const p=mesh.geometry.getAttribute('position'),n=mesh.geometry.getAttribute('normal');
+ assert.ok(n.array instanceof Uint8Array);assert.equal(n.normalized,true);
+ for(let i=0;i<n.count;i++)assert.deepEqual([n.getX(i),n.getY(i),n.getZ(i)],[0,1,0]);
+ assert.equal(p.array.byteLength+n.array.byteLength,p.count*15);
+ assert.equal((p.array.byteLength+n.array.byteLength)/(p.count*24),.625);
+ mesh.geometry.translate(.5,0,.5);
+ for(let i=0;i<n.count;i++)assert.deepEqual([n.getX(i),n.getY(i),n.getZ(i)],[0,1,0]);
+ mesh.geometry.dispose();mesh.material.dispose();
+});
+
+test('water budget follows total tiles between 16 and 64 MiB',()=>{
+ for(const [w,h,budget] of [[128,128,16],[4096,4096,16],[8192,2048,16],[8192,4096,32],[8192,8192,64],[32766,2048,64]])assert.equal(waterGeometryBudget(w,h),budget*1048576);
+ for(const [w,h] of [[0,1],[1,-1],[1.2,2],[Infinity,1]])assert.throws(()=>waterGeometryBudget(w,h));
 });

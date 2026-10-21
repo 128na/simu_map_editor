@@ -1,0 +1,80 @@
+{
+  "conditions": {
+    "baseRevision": "8741c19",
+    "implementation": "working tree with byte-normal water and area-scaled budget",
+    "browser": "Chrome / RTX 4070 Ti",
+    "map": "8192-square; default linear profile, maxSlope2, sea0; 512-square alternating source heights -2/0; then lower40 amount8"
+  },
+  "largeMap": {
+    "createMs": 2879,
+    "editMs": 136,
+    "undoMs": 2473,
+    "totalMs": 6115,
+    "metrics": {
+      "displayStride": 8,
+      "displayTriangles": 3268608,
+      "chunkCount": 1024,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 116969472,
+      "waterTriangles": 0,
+      "waterGeometryBytes": 0,
+      "waterBudgetBytes": 67108864,
+      "drawCalls": 994,
+      "renderedTriangles": 3172848,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    },
+    "detailMetrics": {
+      "displayStride": 8,
+      "displayTriangles": 3780128,
+      "chunkCount": 1024,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 132315072,
+      "waterTriangles": 0,
+      "waterGeometryBytes": 0,
+      "waterBudgetBytes": 67108864,
+      "drawCalls": 996,
+      "renderedTriangles": 3684624,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    }
+  },
+  "largeWater": {
+    "before": {
+      "displayStride": 8,
+      "displayTriangles": 3268608,
+      "chunkCount": 1024,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 152428032,
+      "waterTriangles": 787968,
+      "waterGeometryBytes": 35458560,
+      "waterBudgetBytes": 67108864,
+      "drawCalls": 1002,
+      "renderedTriangles": 3960816,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    },
+    "after": {
+      "displayStride": 8,
+      "displayTriangles": 3396488,
+      "chunkCount": 1024,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 156314562,
+      "waterTriangles": 789082,
+      "waterGeometryBytes": 35508690,
+      "waterBudgetBytes": 67108864,
+      "drawCalls": 1003,
+      "renderedTriangles": 4089810,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    },
+    "frames": {
+      "frameMedianMs": 1.6999999999534339,
+      "frameP95Ms": 1.6999999999534339
+    }
+  }
+}

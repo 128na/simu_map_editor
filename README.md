@@ -65,3 +65,5 @@ GitHub CLIでリポジトリを読める認証を済ませてから `npm run per
 ## ドキュメント
 
 ドキュメントは [docs/README.md](docs/README.md) の規約に従います。初期調査は `docs/records/`、意思決定は `docs/adr/` に保存し、調査の続報は新しい記録として追加します。
+
+水面表示のCPU配列予算はマップ面積に応じて16〜64 MiB（4096四方で16 MiB、8192四方で64 MiB）です。GPU側のコピーと更新時の一時配列は別途必要です。水面の大メモリ検証は `VALIDATE_LARGE_WATER=1` を設定し、`node --experimental-strip-types --test tests/water-surface.test.ts tests/water.test.ts` で実行できます。

@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 
-/** Position and normal CPU arrays; GPU copies and other meshes are additional. */
+/** CPU geometry arrays; GPU copies and replacement allocations are additional. */
 export const WATER_GEOMETRY_BUDGET_BYTES = 16 * 1024 * 1024;
+/** Keep the 4096-square allowance per tile, capped at 64 MiB for larger maps. */
+export function waterGeometryBudget(width:number,height:number):number {
+  if(!Number.isSafeInteger(width)||!Number.isSafeInteger(height)||width<1||height<1||!Number.isSafeInteger(width*height))throw new Error('Invalid water budget dimensions');
+  return Math.min(64,Math.max(16,Math.ceil(16*width*height/(4096*4096))))*1024*1024;
+}
+export function waterBudgetError(budget:number):Error {
+  return new Error(`海岸線が複雑すぎるため、水面の表示予算（CPU配列${budget/1048576} MiB）を超えます。造成範囲を狭めるか、海面設定を変更してください。`);
+}
 
 /** Cover only the submerged part of the terrain's exact triangle tessellation.
  * Sea-level plateaus have no water face, avoiding coincident sand/water surfaces.
@@ -78,13 +86,17 @@ export function createWaterMesh(grid: Int16Array, width: number, height: number,
       }
     };
     pass(false);
-    if (count * Float32Array.BYTES_PER_ELEMENT * 2 > WATER_GEOMETRY_BUDGET_BYTES) {
-      throw new Error('海岸線が複雑すぎるため、水面メッシュのメモリ上限（CPU配列16 MiB）を超えます。画像を縮小するか、海面設定を変更してください。');
+    if (count * (Float32Array.BYTES_PER_ELEMENT + Uint8Array.BYTES_PER_ELEMENT) > WATER_GEOMETRY_BUDGET_BYTES) {
+      throw waterBudgetError(WATER_GEOMETRY_BUDGET_BYTES);
     }
     positions = new Float32Array(count); pass(true);
   }
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.computeVertexNormals();
+  // Every clipped triangle lies on the same upward-facing horizontal plane.
+  // Normalized bytes encode the exact unit normal without a Float32 array.
+  const normals=new Uint8Array(positions.length);
+  for(let i=1;i<normals.length;i+=3)normals[i]=255;
+  geometry.setAttribute('normal',new THREE.BufferAttribute(normals,3,true));
   // Empty geometry has no meaningful bounding sphere.
   if (positions.length) geometry.computeBoundingSphere();
   const material = new THREE.MeshStandardMaterial({ color: 0x4d9eaf, transparent: true, opacity: .57, roughness: .25, side: THREE.FrontSide, depthWrite: false });

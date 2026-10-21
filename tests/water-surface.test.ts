@@ -66,7 +66,7 @@ test('discarded or over-budget water update preserves live geometry and aggregat
 
 test('empty water chunks produce no scene children or materials and partial update creates only wet chunks',()=>{
  const w=520,h=257,grid=new Int16Array((w+1)*(h+1)).fill(1),surface=new WaterSurface(grid,w,h,0);
- assert.equal(surface.children.length,0);assert.deepEqual(surface.materials,[]);assert.deepEqual(surface.metrics,{geometryBytes:0,triangles:0});
+ assert.equal(surface.children.length,0);assert.deepEqual(surface.materials,[]);assert.deepEqual(surface.metrics,{geometryBytes:0,triangles:0,budgetBytes:16*1048576});
  grid[100*(w+1)+100]=-2;const pending=surface.prepareUpdate(grid,w,h,0,{x0:100,y0:100,x1:100,y1:100});
  assert.equal(surface.children.length,0);pending.commit();assert.equal(surface.children.length,1);assert.equal(surface.materials.length,1);
  assert.ok(Math.abs(totalArea(surface)-fullArea(grid,w,h,0))<1e-6);
@@ -79,4 +79,22 @@ test('invalid grids and dirty bounds reject before replacing a surface',()=>{
  assert.throws(()=>surface.prepareUpdate(grid,4,4,0,{x0:3,y0:0,x1:2,y1:0}));
  assert.throws(()=>surface.prepareUpdate(grid,4,4,0,{x0:0,y0:0,x1:5,y1:0}));
  assert.equal(surface.children.length,0);surface.dispose();
+});
+
+
+test('8192 water accepts a shoreline above the old aggregate limit and still rejects its new limit atomically', {skip:!process.env.VALIDATE_LARGE_WATER},()=>{
+ const w=8192,h=8192,grid=new Int16Array((w+1)*(h+1)).fill(1);
+ const paint=(edge:number)=>{for(let y=0;y<=edge;y++)for(let x=0;x<=edge;x++)grid[y*(w+1)+x]=(x+y)%2?-1:1;};
+ paint(512);
+ const surface=new WaterSurface(grid,w,h,0);
+ assert.equal(surface.metrics.budgetBytes,64*1048576);
+ assert.ok(surface.metrics.geometryBytes>16*1048576);
+ assert.ok(surface.metrics.geometryBytes<64*1048576);
+ const old=surface.children.slice(),metrics={...surface.metrics};let disposed=0;
+ for(const child of old)(child as THREE.Mesh).geometry.addEventListener('dispose',()=>disposed++);
+ paint(800);
+ assert.throws(()=>surface.prepareUpdate(grid,w,h,0,{x0:0,y0:0,x1:800,y1:800}),/64 MiB/);
+ assert.deepEqual(surface.children,old);assert.deepEqual(surface.metrics,metrics);assert.equal(disposed,0);
+ console.log(JSON.stringify({scenario:'8192 shoreline 512-square checkerboard',...metrics}));
+ surface.dispose();
 });
