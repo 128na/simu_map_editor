@@ -76,3 +76,13 @@ test('failed export leaves the map unsaved and successful PNG retry round-trips 
   await page.locator('#file').setInputFiles({name:'roundtrip.png',mimeType:'image/png',buffer:bytes});await expect(page.locator('#status')).toContainText('roundtrip.png を読み込みました');
   const reloaded=(await preserved(page)).map;expect(reloaded.heights).toEqual(before.map.heights);expect(reloaded.grid).toEqual(before.map.grid);expect(reloaded.profile).toEqual(before.map.profile);
 });
+
+
+test('PNG roundtrip treats signed zero as the same numeric elevation',async({page})=>{
+ const before=await page.evaluate(()=>{const api=(window as any).__validation;const heights=new Float32Array(17*13);heights[0]=-0;api.setMap({width:17,height:13,heights});return api.getMapDigest();});
+ const ready=page.waitForEvent('download');await page.locator('#exportPng').click();const download=await ready;
+ const stream=await download.createReadStream(),chunks:Buffer[]=[];for await(const chunk of stream!)chunks.push(Buffer.from(chunk));
+ await page.locator('#file').setInputFiles({name:'zero.png',mimeType:'image/png',buffer:Buffer.concat(chunks)});await expect(page.locator('#status')).toContainText('zero.png を読み込みました');
+ expect(await page.evaluate(()=>(window as any).__validation.getMapDigest())).toEqual(before);
+ expect(await page.evaluate(()=>Object.is((window as any).__validation.getSnapshot().heights[0],-0))).toBe(false);
+});

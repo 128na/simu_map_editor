@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DEFAULT_PROFILE, LIMITS, decodeSample, toGrid, applyBrush, applyBrushIncremental, createBrushSession, type DirtyBounds, quantizationReport, normalizeImport, validateDimensions, type Heightmap, type Profile } from './terrain';
+import { DEFAULT_PROFILE, LIMITS, decodeSample, toGrid, applyBrush, applyBrushIncremental, createBrushSession, type DirtyBounds, quantizationReport, normalizeImport, proveLocalHistoryMap, validateDimensions, type Heightmap, type Profile } from './terrain';
 import {ImageIoClient,type ImageIoProgress} from './image-io';
 import { WaterSurface } from './water-surface';
 import {waterGeometryBudget} from './water';
@@ -161,7 +161,8 @@ function selectedStroke(x:number,y:number):Stroke{return{x,y,radius:Number(input
 function getMapDigest(){
  const bits=new Uint32Array(map.heights.buffer,map.heights.byteOffset,map.heights.length);
  let heightsHash=2166136261,gridHash=2166136261;
- for(let i=0;i<bits.length;i++){heightsHash=Math.imul(heightsHash^(bits[i]&0xffff),16777619);heightsHash=Math.imul(heightsHash^(bits[i]>>>16),16777619);}
+ // Images encode numeric heights: +0 and -0 represent the same height.
+ for(let i=0;i<bits.length;i++){const value=bits[i]===0x80000000?0:bits[i];heightsHash=Math.imul(heightsHash^(value&0xffff),16777619);heightsHash=Math.imul(heightsHash^(value>>>16),16777619);}
  for(let i=0;i<grid.length;i++)gridHash=Math.imul(gridHash^grid[i],16777619);
  return {width:map.width,height:map.height,heightsHash:heightsHash>>>0,gridHash:gridHash>>>0};
 }
@@ -253,10 +254,22 @@ async function downloadMap(format:'bmp'|'png'){
 }
 el('export').addEventListener('click',()=>void downloadMap('bmp'));
 el('exportPng').addEventListener('click',()=>void downloadMap('png'));
+function applyHistoryMap(next:Heightmap,indices:Uint32Array){
+ const started=performance.now();
+ // A nine-neighbor proof is useful for sparse edits; dense restores use the full conversion.
+ const local=indices.length*9<map.heights.length&&proveLocalHistoryMap(map,next,profile,indices);
+ let bounds:DirtyBounds|undefined;
+ if(local){
+  bounds={x0:map.width,y0:map.height,x1:0,y1:0};
+  for(const index of indices){const x=index%map.width,y=Math.floor(index/map.width);bounds.x0=Math.min(bounds.x0,x);bounds.y0=Math.min(bounds.y0,y);bounds.x1=Math.max(bounds.x1,x);bounds.y1=Math.max(bounds.y1,y);}
+ }
+ rebuild(next,profile,bounds?{incremental:true,bounds}:undefined);
+ lastTimings.historyLocal=Number(local);lastTimings.historyRestoreMs=performance.now()-started;
+}
 async function moveHistory(redo=false){
  if(busy||history.getState().reading)return;
  setBusy(true);status('履歴を読み込み中…');
- try{const moved=await (redo?history.redo(map,next=>rebuild(next)):history.undo(map,next=>rebuild(next)));if(moved){historyReadFailed=false;status(redo?'造成をやり直しました':'造成を元に戻しました');}}
+ try{const moved=await (redo?history.redo(map,applyHistoryMap):history.undo(map,applyHistoryMap));if(moved){historyReadFailed=false;status(redo?'造成をやり直しました':'造成を元に戻しました');}}
  catch(error){historyReadFailed=true;status(`履歴を復元できませんでした。地形と履歴位置を保持し、造成を一時停止しました。再試行、画像の書き出し、履歴の破棄／RAMのみへの切り替えができます。\n${String(error)}`,true);}
  finally{setBusy(false);}
 }
