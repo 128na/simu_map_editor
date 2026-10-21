@@ -5,27 +5,17 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
+import {nativeProbeConfig,verifyNativeBuild,NATIVE_SOURCE_COMMIT} from './native-probe.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const source = resolve(process.argv[2] ?? 'E:/chore/simutrans');
-const compilerBin = process.argv[3] ?? 'C:/msys64/mingw64/bin';
-const expectedCommit = 'af90444e46dfd422bfdf80518aaa568659ec6b00';
-const output = join(root, '.validation');
-mkdirSync(join(output, 'fixtures'), { recursive: true });
-const env = { ...process.env, PATH: compilerBin + ';' + process.env.PATH };
-function run(executable, args, extra = {}) {
-  const result = spawnSync(executable, args, { env, encoding: 'utf8', timeout: 30000, maxBuffer: 96 * 1024 * 1024, ...extra });
-  if (result.error) throw result.error;
-  assert.equal(result.status, 0, `${executable}: ${result.stderr}`);
-  return result.stdout;
-}
-assert.equal(run('git', ['-C', source, 'rev-parse', 'HEAD']).trim(), expectedCommit, 'Unexpected source revision');
-run('git', ['-C', source, 'diff', '--exit-code', 'HEAD', '--', 'src/simutrans']);
-
-const build = JSON.parse(readFileSync(join(output,'probe-build.json'),'utf8').replace(/^\uFEFF/,''));
-assert.equal(build.sourceCommit,expectedCommit);
-for(const [path,key] of [[join(output,'simutrans-probe.exe'),'executableSha256'],[join(root,'tools/validation/simutrans-probe.cc'),'probeSha256'],[join(root,'tools/validation/build-probe.ps1'),'buildScriptSha256']]) {
-  assert.equal(createHash('sha256').update(readFileSync(path)).digest('hex'),build[key],`Stale build: ${path}`);
+const config=nativeProbeConfig({env:{...process.env,...(process.argv[2]?{SIMUTRANS_SOURCE:process.argv[2]}:{}),...(process.argv[3]?{SIMUTRANS_COMPILER_BIN:process.argv[3]}:{})}});
+const expectedCommit=NATIVE_SOURCE_COMMIT,output=config.output,env=config.env;
+const build=verifyNativeBuild(config);
+mkdirSync(join(output,'fixtures'),{recursive:true});
+function run(executable,args,extra={}){
+ const result=spawnSync(executable,args,{env,encoding:'utf8',timeout:30000,windowsHide:true,maxBuffer:96*1024*1024,...extra});
+ if(result.error)throw result.error;
+ assert.equal(result.status,0,`${executable}: ${result.stderr}`);return result.stdout;
 }
 
 function crc32(bytes) {
@@ -144,7 +134,7 @@ for(const name of ['flat','spike','pit','corners']) {
 let checks=0;
 const cases=[];
 for(const fixture of fixtures) for(const mode of [0,1,2,3]) for(const factor of [1,2]) for(const d of [1,2]) {
-  const actual=JSON.parse(run(join(output,'simutrans-probe.exe'),[fixture.path,`${mode}`,`${factor}`,`${d===2?1:0}`,'-12','32']));
+  const actual=JSON.parse(run(config.executable,[fixture.path,`${mode}`,`${factor}`,`${d===2?1:0}`,'-12','32']));
   assert.equal(actual.width,fixture.w); assert.equal(actual.height,fixture.h);
   const decoded=fixture.values.map(v=>height(v,mode,factor));
   assert.deepEqual(actual.decoded,decoded,`${fixture.name}: height conversion ${mode}/${factor}`);

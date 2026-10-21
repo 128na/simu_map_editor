@@ -2,6 +2,10 @@
 
 Simutrans向けの、ブラウザ内で動作する地形エディタです。本実装を進めており、画像の読込、3D地形と水面の表示、ドラッグによる造成、Undo/Redo、BMP・PNG書き出しに対応しています。
 
+## 公開版
+
+[GitHub Pagesで開く](https://128na.github.io/simu_map_editor/)。Chrome・Edge最新版に対応し、バックエンドは不要です。ファイルはブラウザ内で処理します。設定と一時履歴の保存先はオリジンごとに分かれるため、ローカル版の設定や履歴は公開版へ引き継がれません。
+
 ## 起動
 
 Node.js 22.18以降とnpmを用意して実行します。
@@ -33,15 +37,35 @@ npm test
 npm run build
 ```
 
-Windows上で、外部SimutransソースとMSYS2 MinGW64を使う検証:
+通常のアプリ検証に外部Simutransソースやネイティブコンパイラは不要です。ブラウザテストは、Chrome・Edgeをインストールして `npm run test:browser`、または次のChromium構成で実行します。
 
 ```sh
-npm run validate:heightmaps
-npm run test:browser
-powershell -NoProfile -File tools/validation/run-world-probe.ps1
+npx playwright install chromium
+npx playwright test --config playwright.ci.config.ts
+npm run test:deployment
 ```
 
-ブラウザテストにはインストール済みのChromeとEdgeが必要です。 push・PRではPlaywright Chromiumで画面操作と履歴の回帰テストを実行します。同じ構成は `npx playwright install chromium` 後に `npx playwright test --config playwright.ci.config.ts` で実行できます。ゲーム全体の検証には追加でpakset・実行用データ・CMake/Ninja等が必要です。再現条件と検証の限界は [試作の検証記録](docs/records/2026-10-20_browser-prototype-validation.md) を参照してください。
+`test:deployment` は直前にビルドした成果物をサブディレクトリで配信し、Worker・履歴・PNG往復を検証します。`npm run validate:prototype` は文書・単体・ビルド・Chrome/Edge検証をまとめて実行します。
+
+実ゲーム互換のネイティブ検証は任意です。対象ソースは `af90444e46dfd422bfdf80518aaa568659ec6b00` に固定し、ソース改変・実行ファイル・ハーネスのハッシュを検査します。PowerShellと、C++17・libpng・zlibを利用できるGCC系コンパイラが必要です。Windowsでの設定例:
+
+```powershell
+$env:SIMUTRANS_SOURCE='任意の場所のSimutransソース'
+$env:SIMUTRANS_COMPILER_BIN='任意の場所のコンパイラとDLLのディレクトリ'
+npm run validate:heightmaps
+$env:VALIDATE_NATIVE='1'
+npm run test:browser
+```
+
+コンパイラがPATHにあれば `SIMUTRANS_COMPILER_BIN` は省略できます。`SIMUTRANS_COMPILER` でg++実行ファイル、`SIMUTRANS_PROBE` で生成先を指定できます。既定の生成先は `.validation/` です。Windows以外ではPowerShell 7（`pwsh`、`POWERSHELL` で変更可）が必要ですが、ネイティブ検証の実行確認はWindowsのみです。
+
+ゲーム全体の検証は、追加で `SIMUTRANS_RUNTIME_DATA` と `SIMUTRANS_PAKSET` に実行用データ・paksetを指定し、CMake/Ninjaを用意して `powershell -NoProfile -File tools/validation/run-world-probe.ps1` を実行します。再現条件と検証の限界は [試作の検証記録](docs/records/2026-10-20_browser-prototype-validation.md) を参照してください。
+
+## 静的サイトとして配信
+
+`npm run build` で生成する `dist/` をHTTPで配信します。`npm run preview` でローカル確認できます。アセットとWorkerは相対パスで、配信先のサブディレクトリ名に依存しません。`file://` で直接開く運用には対応しません。
+
+GitHub Pagesはリポジトリの Settings → Pages → Source を GitHub Actions に設定します。mainへのpush、またはmainを指定したGitHub Pagesワークフローの手動実行で、検証後に `dist/` のみを公開します。依存取得はHTTPSを使用し、docs-lintも固定コミットのアーカイブから取得するためSSH鍵は不要です。
 
 ## 性能計測
 

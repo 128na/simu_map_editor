@@ -9,22 +9,24 @@
   "scripts": {
     "lint": "npm run lint:docs && npm run typecheck",
     "lint:docs": "docs-lint",
-    "validate:heightmaps": "powershell -NoProfile -File tools/validation/build-probe.ps1 && node tools/validation/verify-heightmaps.mjs",
+    "validate:heightmaps": "node tools/validation/run-heightmaps.mjs",
     "typecheck": "tsc --noEmit",
     "test:browser": "playwright test",
     "dev": "vite --host 127.0.0.1",
-    "validate:prototype": "npm run validate:heightmaps && npm test && npm run build && npm run test:browser",
+    "validate:prototype": "npm run lint && npm test && npm run build && npm run test:browser",
     "build": "npm run typecheck && vite build",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "benchmark:cpu": "node --experimental-strip-types tools/validation/benchmark-cpu.mjs",
     "benchmark:browser": "playwright test --config playwright.perf.config.ts",
-    "performance:export": "node tools/validation/performance-history.mjs export"
+    "performance:export": "node tools/validation/performance-history.mjs export",
+    "preview": "vite preview --host 127.0.0.1",
+    "test:deployment": "playwright test --config playwright.deploy.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
     "@types/node": "22.20.5",
     "@types/three": "0.186.0",
-    "docs-lint": "github:128na/docs-lint#v1.1.0",
+    "docs-lint": "https://codeload.github.com/128na/docs-lint/tar.gz/1634156983dd8df1dc48347b930d98a87a5f4a4f",
     "typescript": "7.0.2",
     "vite": "8.3.4"
   },

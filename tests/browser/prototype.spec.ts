@@ -3,18 +3,31 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pngFixture, chunk, rleAbsoluteFixture } from '../fixtures.ts';
+import {deflateSync} from 'node:zlib';
+import {nativeProbeConfig,verifyNativeBuild} from '../../tools/validation/native-probe.mjs';
 const root=process.cwd(), output=resolve('.validation');
+const nativeEnabled=process.env.VALIDATE_NATIVE==='1',nativeConfig=nativeProbeConfig();
 const modes=['legacy-small','legacy-large','linear','clamp'];
 function native(path:string,profile:any):any {
-  const result=spawnSync(join(output,'simutrans-probe.exe'),[path,`${modes.indexOf(profile.mode)}`,`${profile.factor}`,`${profile.maxSlope===2?1:0}`,`${profile.min}`,`${profile.max}`],{encoding:'utf8',timeout:10000,maxBuffer:10*1024*1024,env:{...process.env,PATH:'C:/msys64/mingw64/bin;'+process.env.PATH}});
+  const result=spawnSync(nativeConfig.executable,[path,`${modes.indexOf(profile.mode)}`,`${profile.factor}`,`${profile.maxSlope===2?1:0}`,`${profile.min}`,`${profile.max}`],{encoding:'utf8',timeout:10000,windowsHide:true,maxBuffer:10*1024*1024,env:nativeConfig.env});
   expect(result.status,result.stderr).toBe(0);return JSON.parse(result.stdout);
 }
+test.beforeAll(()=>{
+ mkdirSync(join(output,'fixtures'),{recursive:true});
+ // The ordinary UI suite owns its fixture and does not depend on a native run.
+ const header=Buffer.alloc(13);header.writeUInt32BE(9);header.writeUInt32BE(9,4);header[8]=8;
+ const rows=Array.from({length:9},(_,y)=>Buffer.from([0,...Array.from({length:9},(_,x)=>x===4&&y===4?134:128)]));
+ writeFileSync(join(output,'fixtures','spike.png'),Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(Buffer.concat(rows))),chunk('IEND',Buffer.alloc(0))]));
+ if(nativeEnabled)verifyNativeBuild(nativeConfig);
+});
+
 test.beforeEach(async({page})=>{
   page.on('dialog',dialog=>void dialog.accept());
   await page.goto('/?validate=1');
   await page.waitForFunction(()=>!!(window as any).__validation);
 });
 test('browser codecs and terrain match real Simutrans loader and normalization',async({page},info)=>{
+  test.skip(!nativeEnabled,'Set VALIDATE_NATIVE=1 and configure SIMUTRANS_SOURCE after native validation');
   const summary=JSON.parse(readFileSync(join(output,'heightmap-results.json'),'utf8'));
   let count=0;
   for(const fixture of summary.fixtures) {
@@ -76,7 +89,7 @@ test('real UI imports, edits by click, undo/redo, exports and retains map on inp
   expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).heights).toEqual(edited.heights);
   const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;
   const path=join(output,`ui-export-${info.project.name}.bmp`);await download.saveAs(path);
-  expect(native(path,edited.profile).grid).toEqual(edited.grid);
+  if(nativeEnabled)expect(native(path,edited.profile).grid).toEqual(edited.grid);
   await page.locator('#file').setInputFiles(path);
   await expect(page.locator('#status')).toContainText('読み込みました');
   const reloaded=await page.evaluate(()=>(window as any).__validation.getSnapshot());expect(reloaded.grid).toEqual(edited.grid);
@@ -131,6 +144,7 @@ test('large header rejects while keeping terrain and 1024 terrain renders',async
 });
 
 test('raise lower flatten at boundaries export the same grid as native reload',async({page},info)=>{
+  test.skip(!nativeEnabled,'Explicit native Simutrans comparison');
   let count=0;
   for(const mode of modes)for(const maxSlope of [1,2])for(const tool of ['raise','lower','flatten']) {
     const p={mode,min:-12,max:32,factor:1,maxSlope,seaLevel:-2};
@@ -263,7 +277,7 @@ test('new map dimensions create a flat editable exportable terrain and invalid s
   const edited=await snapshot();expect(edited.undoCount).toBe(1);expect(edited.heights).not.toEqual(fresh.heights);
   const pending=page.waitForEvent('download');await page.locator('#export').click();const download=await pending;
   const path=join(output,`new-map-${info.project.name}.bmp`);await download.saveAs(path);
-  expect(native(path,edited.profile).grid).toEqual(edited.grid);
+  if(nativeEnabled)expect(native(path,edited.profile).grid).toEqual(edited.grid);
   await page.locator('#newWidth').fill('1');await page.locator('#newHeight').fill('1');await page.locator('#create').click();
   const tiny=await snapshot();expect([tiny.width,tiny.height,tiny.grid.length,tiny.undoCount]).toEqual([1,1,4,0]);
   await page.screenshot({path:join(output,`new-map-ui-${info.project.name}.png`),fullPage:true});
@@ -306,7 +320,7 @@ test('import correction warning can be canceled and normalized source exports wi
   expect(await page.evaluate(()=>(window as any).__validation.getHistoryState().dirty)).toBe(true);
   const pending=page.waitForEvent('download');await page.locator('#export').click();
   const path=join(output,`normalized-${info.project.name}.bmp`);await(await pending).saveAs(path);
-  expect(native(path,corrected.profile).grid).toEqual(corrected.grid);
+  if(nativeEnabled)expect(native(path,corrected.profile).grid).toEqual(corrected.grid);
   await page.locator('#file').setInputFiles(path);
   await expect(page.locator('#status')).toContainText('補正はありません');
   expect((await page.evaluate(()=>(window as any).__validation.getSnapshot())).grid).toEqual(corrected.grid);
@@ -314,6 +328,7 @@ test('import correction warning can be canceled and normalized source exports wi
 });
 
 test('exported PNG matches native Simutrans grid for all supported profiles',async({page},info)=>{
+ test.skip(!nativeEnabled,'Explicit native Simutrans comparison');
  for(const [min,max] of [[-12,32],[-40,60],[-127,125]])for(const mode of modes)for(const factor of [1,2])for(const maxSlope of [1,2]){
   const profile={mode,min,max,factor,maxSlope,seaLevel:-2};
   const result=await page.evaluate(async profile=>{

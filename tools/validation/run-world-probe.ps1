@@ -1,11 +1,18 @@
 param(
-  [string]$SimutransSource = 'E:/chore/simutrans',
-  [string]$RuntimeData = 'E:/chore/simutrans_addon/simuwin',
-  [string]$Pakset = 'E:/chore/simutrans_addon/simuwin/pak128',
-  [string]$CompilerBin = 'C:/msys64/mingw64/bin',
+  [string]$SimutransSource = $env:SIMUTRANS_SOURCE,
+  [string]$RuntimeData = $env:SIMUTRANS_RUNTIME_DATA,
+  [string]$Pakset = $env:SIMUTRANS_PAKSET,
+  [string]$CompilerBin = $env:SIMUTRANS_COMPILER_BIN,
   [switch]$SkipBuild
 )
 $ErrorActionPreference = 'Stop'
+foreach($setting in @(@{name='SIMUTRANS_SOURCE / -SimutransSource';path=$SimutransSource},@{name='SIMUTRANS_RUNTIME_DATA / -RuntimeData';path=$RuntimeData},@{name='SIMUTRANS_PAKSET / -Pakset';path=$Pakset})) {
+  if(!$setting.path -or !(Test-Path -LiteralPath $setting.path -PathType Container)){throw "Set $($setting.name) to an existing directory"}
+}
+$SimutransSource=(Resolve-Path -LiteralPath $SimutransSource).Path
+$RuntimeData=(Resolve-Path -LiteralPath $RuntimeData).Path
+$Pakset=(Resolve-Path -LiteralPath $Pakset).Path
+$exeSuffix=if($env:OS -eq 'Windows_NT'){'.exe'}else{''}
 $repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $root = Join-Path $repoRoot '.validation/world-probe'
 $sourceCopy = Join-Path $root 'source'
@@ -43,7 +50,8 @@ function Write-TerrainFixture([string]$Path, [bool]$Coast) {
 }
 
 try {
-  $env:PATH = "$CompilerBin;$oldPath"
+  if($CompilerBin){if(!(Test-Path -LiteralPath $CompilerBin -PathType Container)){throw 'SIMUTRANS_COMPILER_BIN / -CompilerBin is not an existing directory'};$env:PATH=$CompilerBin+[IO.Path]::PathSeparator+$oldPath}
+  if(!$SkipBuild -and !(Get-Command cmake -ErrorAction SilentlyContinue)){throw 'cmake must be on PATH or in SIMUTRANS_COMPILER_BIN / -CompilerBin'}
   New-Item -ItemType Directory -Path $root -Force | Out-Null
   if (!(Test-Path $sourceCopy)) {
     & git clone --local --no-hardlinks $SimutransSource $sourceCopy
@@ -74,24 +82,24 @@ try {
   Check-Exit 'check isolated untracked files'
   if($unexpectedFiles){throw 'Unexpected untracked files in isolated source'}
   $stampPath=Join-Path $root 'world-build.json'
-  $exe=Join-Path $build 'simutrans/simutrans.exe'
+  $exe=Join-Path $build ("simutrans/simutrans"+$exeSuffix)
   if($SkipBuild){
     if(!(Test-Path $stampPath)){throw 'No build manifest; run without -SkipBuild first'}
     $stamp=Get-Content $stampPath -Raw | ConvertFrom-Json
     if($stamp.sourceCommit -ne $actualCommit -or $stamp.patchSha256 -ne (Get-ProbeHash $patch) -or $stamp.executableSha256 -ne (Get-ProbeHash $exe)){throw 'Stale world build; run without -SkipBuild'}
   }
   if(!$SkipBuild){
-    & "$CompilerBin/cmake.exe" -S $sourceCopy -B $build -G Ninja -DCMAKE_TOOLCHAIN_FILE= -DCMAKE_BUILD_TYPE=Release '-DCMAKE_CXX_FLAGS_RELEASE=-O0 -DNDEBUG' -DSIMUTRANS_BACKEND=none -DSIMUTRANS_MULTI_THREAD=OFF -DSIMUTRANS_USE_FLUIDSYNTH_MIDI=OFF -DSIMUTRANS_USE_UPNP=OFF -DSIMUTRANS_USE_ZSTD=OFF -DSIMUTRANS_INSTALL_PAK64=OFF -DSIMUTRANS_USE_REVISION=99999
+    & cmake -S $sourceCopy -B $build -G Ninja -DCMAKE_TOOLCHAIN_FILE= -DCMAKE_BUILD_TYPE=Release '-DCMAKE_CXX_FLAGS_RELEASE=-O0 -DNDEBUG' -DSIMUTRANS_BACKEND=none -DSIMUTRANS_MULTI_THREAD=OFF -DSIMUTRANS_USE_FLUIDSYNTH_MIDI=OFF -DSIMUTRANS_USE_UPNP=OFF -DSIMUTRANS_USE_ZSTD=OFF -DSIMUTRANS_INSTALL_PAK64=OFF -DSIMUTRANS_USE_REVISION=99999
     Check-Exit 'configure headless'
-    & "$CompilerBin/cmake.exe" --build $build --target simutrans -j 4
+    & cmake --build $build --target simutrans -j 4
     Check-Exit 'build headless'
     @{sourceCommit=$actualCommit;patchSha256=(Get-ProbeHash $patch);executableSha256=(Get-ProbeHash $exe)} | ConvertTo-Json | Set-Content $stampPath -Encoding UTF8
   }
-  $exe=Join-Path $build 'simutrans/simutrans.exe'
-  $nativeExe=Join-Path $repoRoot '.validation/simutrans-probe.exe'
+  $exe=Join-Path $build ("simutrans/simutrans"+$exeSuffix)
+  $nativeExe=if($env:SIMUTRANS_PROBE){$env:SIMUTRANS_PROBE}else{Join-Path $repoRoot ('.validation/simutrans-probe'+$exeSuffix)}
   if(!(Test-Path $nativeExe)){throw 'Run npm run validate:heightmaps first'}
   $nativeStamp=Get-Content (Join-Path $repoRoot '.validation/probe-build.json') -Raw | ConvertFrom-Json
-  if($nativeStamp.sourceCommit -ne $actualCommit -or $nativeStamp.executableSha256 -ne (Get-ProbeHash $nativeExe)){throw 'Stale native comparator; run npm run validate:heightmaps'}
+  if($nativeStamp.sourceCommit -ne $actualCommit -or $nativeStamp.executableSha256 -ne (Get-ProbeHash $nativeExe) -or $nativeStamp.probeSha256 -ne (Get-ProbeHash (Join-Path $PSScriptRoot 'simutrans-probe.cc')) -or $nativeStamp.buildScriptSha256 -ne (Get-ProbeHash (Join-Path $PSScriptRoot 'build-probe.ps1'))){throw 'Stale native comparator; run npm run validate:heightmaps'}
   $fixtures=Join-Path $repoRoot '.validation/fixtures'
   Write-TerrainFixture "$root/sea.bmp" $false
   Write-TerrainFixture "$root/coast.bmp" $true
