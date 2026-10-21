@@ -67,7 +67,7 @@ npm run test:browser
 
 `npm run build` で生成する `dist/` をHTTPで配信します。`npm run preview` でローカル確認できます。アセットとWorkerは相対パスで、配信先のサブディレクトリ名に依存しません。`file://` で直接開く運用には対応しません。
 
-GitHub Pagesはリポジトリの Settings → Pages → Source を GitHub Actions に設定します。mainへのpush、またはmainを指定したGitHub Pagesワークフローの手動実行で、検証後に `dist/` のみを公開します。依存取得はHTTPSを使用し、docs-lintも固定コミットのアーカイブから取得するためSSH鍵は不要です。
+GitHub Pagesはリポジトリの Settings → Pages → Source を GitHub Actions に設定します。mainへのpush、またはmainを指定したCIワークフローの手動実行で、単体・ブラウザ回帰・配信成果物の検証後に `dist/` のみを公開します。依存取得はHTTPSを使用し、docs-lintも固定コミットのアーカイブから取得するためSSH鍵は不要です。
 
 ## 性能計測
 
@@ -87,6 +87,20 @@ npm run test:browser -- --grep 'operation performance' --project chrome
 mainへのpushとmainでの手動ブラウザ計測が成功すると、[性能記録Issue](https://github.com/128na/simu_map_editor/issues/1) に結果表とJSONをコメントします。PRからは投稿しません。成果物が期限切れになっても、コメント内の生データから再集計できます。同一の計測種別・CI実行ID・再実行番号は二重投稿せず、再実行番号が異なる測定は別記録として残します。
 
 GitHub CLIでリポジトリを読める認証を済ませてから `npm run performance:export` を実行すると、公式CIボットの記録を取得し `.validation/performance-history.csv` へ集約します。引数で出力先を変更できます（例: `npm run performance:export -- .validation/history.csv`）。1行は1実行・サイズ・操作で、単位はmsです。CPU/ブラウザ、計測バージョン、環境を分けて比較してください。数値は平均せず、生の各試行から中央値を再計算します。ローカル計測は識別情報を保存しますが、自動ではIssueへ投稿しません。
+
+持続負荷の計測は `npm run benchmark:sustained` で実行します。ローカルのChromeで、既定は4096四方・ブラシ半径40・強さ1、60秒かつ最低12サイクルです。造成・非同期履歴退避を繰り返し、3サイクルごとにUndo/Redo後の地形と格子をダイジェストで照合します。通常CIでは実行しません。条件変更の例:
+
+```powershell
+$env:SUSTAINED_SIZE='4096'
+$env:SUSTAINED_SECONDS='60'
+$env:SUSTAINED_CYCLES='12'
+$env:SUSTAINED_RADIUS='40'
+npm run benchmark:sustained
+```
+
+サイズは256〜8192、秒数は1〜600、最低サイクル数は2〜300、半径は1〜40、`SUSTAINED_AMOUNT` は1〜8です。最大300サイクルで打ち切り、指定時間未達なら未完了として記録します。`.validation/sustained-*.json` にソースSHA・GPU・操作別時間・フレーム間隔・同期履歴登録時間・保存量・参考JSヒープを残し、途中失敗時も取得済みの記録を保存します。前半／中盤／後半はサイクル数による三分割です。時刻基準はJSONへ明記します。
+
+フレーム間隔はメインスレッドの応答指標で、描画fpsではありません。静止中は描画を休止します。JSヒープはGPU・Worker・多くのArrayBufferを含まない参考値で、総メモリやリークの有無を示しません。操作全体にはテストドライバの待機時間も含むため、同期処理時間と分けて評価してください。
 
 ## ドキュメント
 
