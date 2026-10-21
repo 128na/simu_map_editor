@@ -13,6 +13,7 @@ import { addTileGrid } from './grid-material';
 import { COMPATIBILITY_TARGET, PROFILE_PRESETS, encodingKey, validateEditorProfile } from './compatibility';
 import { largeMapWarning } from './resources';
 import { editorLayout } from './editor-layout';
+import { installEditorInput } from './editor-input';
 import { loadPreferences, savePreferences } from './preferences';
 import {loadEditorSettings,saveEditorSettings,validateSettings,type EditorSettings} from './editor-settings';
 import './style.css';
@@ -395,59 +396,14 @@ renderer.domElement.addEventListener('pointercancel',event=>{if(gesture?.id===ev
 renderer.domElement.addEventListener('lostpointercapture',event=>{if(gesture?.id===event.pointerId)finishGesture(true);});
 renderer.domElement.addEventListener('pointerleave',()=>{indicator.visible=false;hoverScreen=null;cursorReadout(null);stopHold();});
 window.addEventListener('blur',()=>finishGesture(true));
-const panKeys=new Set<string>();
-const editableTarget=(target:EventTarget|null)=>target instanceof HTMLElement&&(!!target.closest('input,select,textarea')||target.isContentEditable);
-const arrowKeys=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'];
-function panKeyboard(seconds:number){
- if(!panKeys.size)return;
- if(busy||gesture||editableTarget(document.activeElement)){panKeys.clear();return;}
- camera.updateMatrixWorld();
- const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);right.y=0;right.normalize();
- const up=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),right).normalize();
- const x=Number(panKeys.has('ArrowRight'))-Number(panKeys.has('ArrowLeft'));
- const y=Number(panKeys.has('ArrowUp'))-Number(panKeys.has('ArrowDown'));
- const delta=right.multiplyScalar(x).addScaledVector(up,y);
- if(!delta.lengthSq())return;
- delta.normalize().multiplyScalar(camera.position.distanceTo(controls.target)*seconds*.6);
- camera.position.add(delta);controls.target.add(delta);indicator.visible=false;hoverScreen=null;cursorReadout(null);
-}
-window.addEventListener('keyup',event=>panKeys.delete(event.key));
-window.addEventListener('blur',()=>panKeys.clear());
-window.addEventListener('focusin',()=>panKeys.clear());
-renderer.domElement.addEventListener('pointerdown',()=>panKeys.clear());
-window.addEventListener('keydown',event=>{
- if(event.isComposing||event.keyCode===229)return;
- if(event.key==='Escape'){panKeys.clear();finishGesture(true);return;}
- if(editableTarget(event.target)||event.altKey)return;
- const key=event.key.toLowerCase(),command=event.ctrlKey||event.metaKey;
- if(command){
-  const id=key==='z'?(event.shiftKey?'redo':'undo'):key==='y'&&!event.shiftKey?'redo':key==='o'&&!event.shiftKey?'file':key==='s'&&!event.shiftKey?'exportPng':null;
-  if(!id)return;
-  event.preventDefault();panKeys.clear();
-  if(!event.repeat&&!busy&&!gesture&&!history.getState().reading)el(id).click();
-  return;
- }
- if(arrowKeys.includes(event.key)){
-  event.preventDefault();
-  if(!busy&&!gesture&&!history.getState().reading)panKeys.add(event.key);
-  return;
- }
- const tool=['raise','lower','flatten','smooth'][Number(key)-1];
- const radiusDelta=key==='['?-1:key===']'?1:0;
- const amountDelta=key==='-'?-1:key==='+'||key==='='?1:0;
- if(!tool&&!radiusDelta&&!amountDelta&&key!=='g'&&key!=='v')return;
- event.preventDefault();
- if(busy||gesture||history.getState().reading)return;
- if(tool){if(event.repeat)return;input('tool').value=tool;input('tool').dispatchEvent(new Event('change'));}
- else if(radiusDelta||amountDelta){
-  const id=radiusDelta?'radius':'amount',field=input(id);
-  field.value=String(Math.max(1,Math.min(radiusDelta?settings.maxBrushRadius:8,Number(field.value)+(radiusDelta||amountDelta))));
-  field.dispatchEvent(new Event('input'));field.dispatchEvent(new Event('change'));
- }else if(!event.repeat){if(key==='g')input('gridToggle').click();else el(preferences.view==='top'?'oblique':'top').click();}
+const editorInput=installEditorInput({
+ canvas:renderer.domElement,camera,target:controls.target,
+ blocked:()=>busy||gesture!==null||history.getState().reading,
+ cancel:()=>finishGesture(true),view:()=>preferences.view,maxRadius:()=>settings.maxBrushRadius,
+ onPan:()=>{indicator.visible=false;hoverScreen=null;cursorReadout(null);},
 });
-for(const [id,title] of Object.entries({tool:'1: 盛土 / 2: 掘削 / 3: 平坦化 / 4: なだらかにする',radius:'[ / ]: ブラシ半径を縮小 / 拡大',amount:'- / +: 強さを下げる / 上げる',undo:'Ctrl+Z: 元に戻す',redo:'Ctrl+Shift+Z / Ctrl+Y: やり直す',file:'Ctrl+O: 画像を開く',exportPng:'Ctrl+S: PNGを書き出す',gridToggle:'G: グリッド表示',top:'V: 真上 / 斜めを切り替え',oblique:'V: 真上 / 斜めを切り替え'}))el(id).title=title;
 
 new ResizeObserver(()=>{const width=viewport.clientWidth,height=viewport.clientHeight;renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();scheduleViewDetail();}).observe(viewport);
 let lastFrame=performance.now();
-function animate(){requestAnimationFrame(animate);const now=performance.now();panKeyboard(Math.min(.05,(now-lastFrame)/1000));lastFrame=now;controls.update();renderer.render(scene,camera);}rebuild();view();animate();status('128 × 128タイルの平坦な地形で開始しました。サイズを指定して新規作成するか、マップ画像を開いてください。');
+function animate(){requestAnimationFrame(animate);const now=performance.now();editorInput.update(Math.min(.05,(now-lastFrame)/1000));lastFrame=now;controls.update();renderer.render(scene,camera);}rebuild();view();animate();status('128 × 128タイルの平坦な地形で開始しました。サイズを指定して新規作成するか、マップ画像を開いてください。');
 if(new URLSearchParams(location.search).has('validate')){const gl=renderer.getContext();const debug=gl.getExtension('WEBGL_debug_renderer_info');Object.assign(window,{__validation:{getEditorSettings:()=>({...settings}),getDisplayChunks:()=>terrain?.children.map(child=>{const g=(child as THREE.Mesh).geometry;return {x0:g.userData.x0,y0:g.userData.y0,x1:g.userData.x1,y1:g.userData.y1,stride:g.userData.stride,minHeight:g.boundingBox?.min.y,maxHeight:g.boundingBox?.max.y};}).map(({x0,y0,x1,y1,stride,minHeight,maxHeight})=>({x0,y0,x1,y1,stride,minHeight,maxHeight})),getInteractionUpdates:()=>interactionUpdates.map(value=>({...value})),resetInteractionUpdates:()=>{interactionUpdates.length=0;},getHistoryState:()=>({...history.getState(),paused:historyPaused,memoryOnly:memoryHistory,dirty:hasUnsavedChanges()}),waitHistory:()=>history.settled(),setHistoryFault:(fault:typeof historyFault)=>{historyFault={...fault};},configureHistory:(options:HistoryOptions)=>{if(history.getState().reading||gesture)throw new Error('History is busy');const old=history;historyOptions={...historyOptions,...options};memoryHistory=false;history=makeHistory();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];void old.dispose().catch(()=>{});historyButtons();},getTimings:()=>({...lastTimings}),projectSample:(x:number,y:number)=>{camera.updateMatrixWorld();const xi=Math.max(0,Math.min(map.width,Math.round(x))),yi=Math.max(0,Math.min(map.height,Math.round(y)));const v=new THREE.Vector3(x-map.width/2,grid[xi+yi*(map.width+1)],y-map.height/2).project(camera);const r=renderer.domElement.getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},getSnapshot:()=>({width:map.width,height:map.height,heights:Array.from(map.heights),grid:Array.from(grid),profile:{...profile},undoCount:history.getState().undoCount,redoCount:history.getState().redoCount}),setMap,stroke,getMetrics:()=>({displayStride:terrain?.metrics.stride,displayTriangles:terrain?.metrics.triangles,chunkCount:terrain?.metrics.chunkCount,displayCells:terrain?.metrics.regularCells,displayCellBudget:terrain?.metrics.cellBudget,viewAware:terrain?.metrics.viewAware,gridVisible:gridEnabled.value,triangles:map.width*map.height*2,geometryBytes:(terrain?.metrics.geometryBytes??0)+(water?.metrics.geometryBytes??0),waterTriangles:water?.metrics.triangles??0,waterGeometryBytes:water?.metrics.geometryBytes??0,waterBudgetBytes:water?.metrics.budgetBytes??0,drawCalls:renderer.info.render.calls,renderedTriangles:renderer.info.render.triangles,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),webgl2:gl instanceof WebGL2RenderingContext}),renderSample:async(frames=20)=>{const times:number[]=[];for(let i=0;i<frames;i++){await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return{frameMedianMs:times[Math.floor(times.length*.5)],frameP95Ms:times[Math.min(times.length-1,Math.floor(times.length*.95))]};}}});}
