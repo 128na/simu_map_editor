@@ -104,6 +104,9 @@ function historyFailure(error:unknown){
 }
 function resetHistory(){history.reset();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];historyButtons();}
 function rememberRevision(){const count=history.getState().undoCount;revisions=revisions.slice(0,count);revisions.push(++revisionSerial);}
+function recordHistory(patch:Parameters<AsyncHistory['record']>[0]){
+ const started=performance.now();try{history.record(patch);}finally{lastTimings.historyRecordMs=performance.now()-started;}
+}
 function editingBlocked(){return busy||historyPaused||history.getState().reading||history.getState().failed;}
 history=makeHistory();historyButtons();
 input('historyRam').value=String(ramBudgetMiB);input('historyDisk').value=String(diskBudgetMiB);
@@ -142,13 +145,22 @@ function stroke(options:Stroke){
  if(editingBlocked())throw new Error('History is busy, paused or unavailable');
  const previous=map;const coreStart=performance.now();const result=applyBrushIncremental(map,profile,options);lastTimings={coreMs:performance.now()-coreStart};
  if(result.changed){
+  const patchStarted=performance.now();
   const patch=createPatch(previous,result.map,result.changedIndices)!;
+  lastTimings.historyPatchMs=performance.now()-patchStarted;
   rebuild(result.map,profile,result);
-  try{history.record(patch);rememberRevision();}catch(error){rebuild(previous);historyFailure(error);throw error;}
+  try{recordHistory(patch);rememberRevision();}catch(error){rebuild(previous);historyFailure(error);throw error;}
  }
  status(`造成完了: ${result.changed.toLocaleString()}画素変更 / 履歴 ${history.getState().undoCount}回（非同期保存）`);
 }
 function selectedStroke(x:number,y:number):Stroke{return{x,y,radius:Number(input('radius').value),amount:Number(input('amount').value),tool:el<HTMLSelectElement>('tool').value as Stroke['tool'],smoothingRadius:settings.smoothingRadius,smoothingMode:settings.smoothingMode};}
+function getMapDigest(){
+ const bits=new Uint32Array(map.heights.buffer,map.heights.byteOffset,map.heights.length);
+ let heightsHash=2166136261,gridHash=2166136261;
+ for(let i=0;i<bits.length;i++){heightsHash=Math.imul(heightsHash^(bits[i]&0xffff),16777619);heightsHash=Math.imul(heightsHash^(bits[i]>>>16),16777619);}
+ for(let i=0;i<grid.length;i++)gridHash=Math.imul(gridHash^grid[i],16777619);
+ return {width:map.width,height:map.height,heightsHash:heightsHash>>>0,gridHash:gridHash>>>0};
+}
 function setBusy(value:boolean){busy=value;document.querySelectorAll<HTMLButtonElement|HTMLInputElement|HTMLSelectElement>('button,input,select').forEach(e=>e.disabled=value);historyButtons();}
 el('create').addEventListener('click',()=>{
  try{
@@ -357,8 +369,10 @@ function finishGesture(cancel=false){
  try{
   if(cancel){rebuild(completed.before);status('ドラッグ造成を取り消しました');}
   else {
+   const patchStarted=performance.now();
    const patch=createPatch(completed.before,map,completed.changed);
-   if(patch){history.record(patch);rememberRevision();}
+   lastTimings.historyPatchMs=performance.now()-patchStarted;lastTimings.historyRecordMs=0;
+   if(patch){recordHistory(patch);rememberRevision();}
    status(`造成完了: ${(patch?.indices.length??0).toLocaleString()}画素変更 / ${completed.options.tool==='smooth'?'平滑化':`固定標高 ${(completed.options.target??0)+1}`} / 履歴 ${history.getState().undoCount}回（非同期保存）`);
   }
  }catch(error){rebuild(completed.before);historyFailure(error);}
@@ -418,3 +432,4 @@ document.addEventListener('visibilitychange',visibilityChanged);
 renderer.domElement.addEventListener('webglcontextrestored',invalidate);
 visibilityChanged();rebuild();view();invalidate();status('128 × 128タイルの平坦な地形で開始しました。サイズを指定して新規作成するか、マップ画像を開いてください。');
 if(new URLSearchParams(location.search).has('validate')){const gl=renderer.getContext();const debug=gl.getExtension('WEBGL_debug_renderer_info');Object.assign(window,{__validation:{getEditorSettings:()=>({...settings}),getDisplayChunks:()=>terrain?.children.map(child=>{const g=(child as THREE.Mesh).geometry;return {x0:g.userData.x0,y0:g.userData.y0,x1:g.userData.x1,y1:g.userData.y1,stride:g.userData.stride,minHeight:g.boundingBox?.min.y,maxHeight:g.boundingBox?.max.y};}).map(({x0,y0,x1,y1,stride,minHeight,maxHeight})=>({x0,y0,x1,y1,stride,minHeight,maxHeight})),getInteractionUpdates:()=>interactionUpdates.map(value=>({...value})),resetInteractionUpdates:()=>{interactionUpdates.length=0;},getHistoryState:()=>({...history.getState(),paused:historyPaused,memoryOnly:memoryHistory,dirty:hasUnsavedChanges()}),waitHistory:()=>history.settled(),setHistoryFault:(fault:typeof historyFault)=>{historyFault={...fault};},configureHistory:(options:HistoryOptions)=>{if(history.getState().reading||gesture)throw new Error('History is busy');const old=history;historyOptions={...historyOptions,...options};memoryHistory=false;history=makeHistory();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];void old.dispose().catch(()=>{});historyButtons();},getTimings:()=>({...lastTimings}),projectSample:(x:number,y:number)=>{camera.updateMatrixWorld();const xi=Math.max(0,Math.min(map.width,Math.round(x))),yi=Math.max(0,Math.min(map.height,Math.round(y)));const v=new THREE.Vector3(x-map.width/2,grid[xi+yi*(map.width+1)],y-map.height/2).project(camera);const r=renderer.domElement.getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},getSnapshot:()=>({width:map.width,height:map.height,heights:Array.from(map.heights),grid:Array.from(grid),profile:{...profile},undoCount:history.getState().undoCount,redoCount:history.getState().redoCount}),setMap,stroke,getMetrics:()=>({displayStride:terrain?.metrics.stride,displayTriangles:terrain?.metrics.triangles,chunkCount:terrain?.metrics.chunkCount,displayCells:terrain?.metrics.regularCells,displayCellBudget:terrain?.metrics.cellBudget,viewAware:terrain?.metrics.viewAware,gridVisible:gridEnabled.value,triangles:map.width*map.height*2,geometryBytes:(terrain?.metrics.geometryBytes??0)+(water?.metrics.geometryBytes??0),waterTriangles:water?.metrics.triangles??0,waterGeometryBytes:water?.metrics.geometryBytes??0,waterBudgetBytes:water?.metrics.budgetBytes??0,drawCalls:renderer.info.render.calls,renderedTriangles:renderer.info.render.triangles,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),webgl2:gl instanceof WebGL2RenderingContext}),renderSample:async(frames=20)=>{const times:number[]=[];for(let i=0;i<frames;i++){await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return{frameMedianMs:times[Math.floor(times.length*.5)],frameP95Ms:times[Math.min(times.length-1,Math.floor(times.length*.95))]};}}});}
+if(interactionDiagnostics)Object.assign((window as unknown as {__validation:object}).__validation,{getMapDigest});
