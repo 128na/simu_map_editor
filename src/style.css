@@ -5,3 +5,5 @@
 [hidden]{display:none!important}
 
 .header-links{display:flex;align-items:center;gap:16px}.header-links a{color:#b5e5ce;font-size:13px;white-space:nowrap;text-underline-offset:3px}.header-links a:hover{color:#e1eee8}
+
+#fileOperation{position:absolute;top:62px;left:14px;right:14px;width:min(420px,calc(100% - 28px));padding:14px;background:#162226ed;border:1px solid #6c9991;border-radius:6px;color:#e1eee8;font-size:13px;z-index:2}#fileOperation progress{display:block;width:100%;height:12px;margin:12px 0;accent-color:#8fc8b1}#cancelFileOperation{width:100%}

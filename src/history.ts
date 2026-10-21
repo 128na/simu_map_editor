@@ -114,7 +114,7 @@ export class AsyncHistory {
     });
     this.notify();
   }
-  private async move(current: Heightmap, apply: (next: Heightmap) => void, redo: boolean): Promise<boolean> {
+  private async move(current: Heightmap, apply: (next: Heightmap, indices: Uint32Array) => void, redo: boolean): Promise<boolean> {
     this.assertIdle();
     const entry = this.entries[redo ? this.cursor : this.cursor - 1];
     if (!entry) return false;
@@ -126,12 +126,13 @@ export class AsyncHistory {
       if (patch.width !== current.width || patch.height !== current.height || current.heights.length !== patch.width * patch.height) throw new Error('History map dimensions differ');
       const heights = current.heights.slice(), source = redo ? patch.before : patch.after, target = redo ? patch.after : patch.before;
       for (let i = 0; i < patch.indices.length; i++) { const at = patch.indices[i]; if (heights[at] !== source[i]) throw new Error('History does not match current terrain'); heights[at] = target[i]; }
-      apply({ width: current.width, height: current.height, heights });
+      // The callback may locally prove/render next: only these indices differ from current.
+      apply({ width: current.width, height: current.height, heights }, patch.indices);
       this.cursor += redo ? 1 : -1; return true;
     } finally { this.reading = false; this.notify(); }
   }
-  undo(current: Heightmap, apply: (next: Heightmap) => void): Promise<boolean> { return this.move(current, apply, false); }
-  redo(current: Heightmap, apply: (next: Heightmap) => void): Promise<boolean> { return this.move(current, apply, true); }
+  undo(current: Heightmap, apply: (next: Heightmap, indices: Uint32Array) => void): Promise<boolean> { return this.move(current, apply, false); }
+  redo(current: Heightmap, apply: (next: Heightmap, indices: Uint32Array) => void): Promise<boolean> { return this.move(current, apply, true); }
   reset(): void {
     this.assertIdle(); const old = this.entries; old.forEach(e => { e.active = false; });
     this.entries = []; this.cursor = 0; this.generation++; this.failed = false;

@@ -1,7 +1,7 @@
 import {createBrushSession} from '../src/terrain.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeImport, applyBrushIncremental, applyBrush, decodeSample, DEFAULT_PROFILE as P, encodeSamples, toGrid, validateDimensions } from '../src/terrain.ts';
+import { normalizeImport, proveLocalHistoryMap, applyBrushIncremental, applyBrush, decodeSample, DEFAULT_PROFILE as P, encodeSamples, toGrid, validateDimensions } from '../src/terrain.ts';
 import type { Heightmap, Mode } from '../src/terrain.ts';
 const map = (w: number, h: number, v = 0): Heightmap => ({ width: w, height: h, heights: new Float32Array(w * h).fill(v) });
 function constrained(m: Heightmap, slope = 1) {
@@ -438,4 +438,48 @@ test('slope smoothing preserves local/full and owned-gesture agreement across pr
  const original=map(5,5);
  assert.throws(()=>applyBrushIncremental(original,P,{x:2,y:2,radius:1,amount:1,tool:'smooth',smoothingMode:'unknown' as 'slope'}),/smoothing mode/);
  assert.throws(()=>applyBrushIncremental(original,P,{x:2,y:2,radius:1,amount:1,tool:'smooth',smoothingMode:'slope',target:.5}),/representable/);
+});
+
+
+test('local history proofs match full grids at borders across compatibility profiles',()=>{
+ for(const mode of ['linear','clamp','legacy-small','legacy-large'] as Mode[])for(const maxSlope of [1,2] as const){
+  const p={...P,mode,maxSlope},original=map(19,13,decodeSample(128,p));toGrid(original,p);
+  const edited=applyBrushIncremental(original,p,{x:18,y:12,radius:2,amount:2,tool:'raise'});
+  const restored={width:original.width,height:original.height,heights:edited.map.heights.slice()};
+  for(const i of edited.changedIndices)restored.heights[i]=original.heights[i];
+  assert.equal(proveLocalHistoryMap(edited.map,restored,p,edited.changedIndices),true,mode);
+  const full=toGrid(restored,p);
+  for(let y=0;y<=restored.height;y++)for(let x=0;x<=restored.width;x++)assert.equal(full[y*(restored.width+1)+x],restored.heights[Math.min(y,restored.height-1)*restored.width+Math.min(x,restored.width-1)]+1);
+  const redone={...restored,heights:restored.heights.slice()};
+  for(const i of edited.changedIndices)redone.heights[i]=edited.map.heights[i];
+  assert.equal(proveLocalHistoryMap(restored,redone,p,edited.changedIndices),true);
+  assert.deepEqual(toGrid(redone,p),toGrid(edited.map,p));
+ }
+});
+
+test('local history proofs reject fractional, unreachable and diagonal slope violations',()=>{
+ const p={...P,mode:'clamp' as const};
+ const current=map(3,3);current.heights[8]=-1;toGrid(current,p);
+ const next={...current,heights:current.heights.slice()};next.heights[4]=1;
+ // All four orthogonal neighbors permit the edit; only the diagonal rejects it.
+ assert.equal(proveLocalHistoryMap(current,next,p,Uint32Array.of(4)),false);
+ const single=map(1,1);toGrid(single,p);
+ assert.equal(proveLocalHistoryMap(single,map(1,1,.5),p,Uint32Array.of(0)),false);
+ const legacy={...p,mode:'legacy-small' as const,min:0,max:125};toGrid(single,legacy);
+ assert.ok(10>=legacy.min&&10<=legacy.max);
+ assert.equal(proveLocalHistoryMap(single,map(1,1,10),legacy,Uint32Array.of(0)),false);
+});
+
+test('local history proofs require known current legality and the same profile',()=>{
+ const p={...P,mode:'clamp' as const},current=map(16,16),next={...current,heights:current.heights.slice()};next.heights[255]=1;
+ assert.equal(proveLocalHistoryMap(current,next,p,Uint32Array.of(255)),false);
+ toGrid(current,p);
+ assert.equal(proveLocalHistoryMap(current,next,{...p,maxSlope:2},Uint32Array.of(255)),false);
+ assert.equal(proveLocalHistoryMap(current,next,p,Uint32Array.of(255)),true);
+ const raw=map(16,16);raw.heights[0]=8;toGrid(raw,p);
+ const rawNext={...raw,heights:raw.heights.slice()};rawNext.heights[255]=1;
+ assert.equal(proveLocalHistoryMap(raw,rawNext,p,Uint32Array.of(255)),false);
+ assert.equal(proveLocalHistoryMap(current,{...next,width:8,height:32},p,Uint32Array.of(255)),false);
+ assert.equal(proveLocalHistoryMap(current,next,p,Uint32Array.of(256)),false);
+ assert.equal(proveLocalHistoryMap(current,next,p,new Uint32Array()),false);
 });

@@ -47,11 +47,11 @@ test('PNG download preserves terrain and cleans only a successful export',async(
  await page.evaluate(()=>{const a=(window as any).__validation;a.setMap({width:9,height:5,heights:Float32Array.from({length:45},(_,i)=>Math.floor((i%9+Math.floor(i/9))/2)-3)});});
  const before=await page.evaluate(()=>(window as any).__validation.getSnapshot());
  const dirty=await page.evaluate(()=>(window as any).__validation.getHistoryState().dirty);expect(dirty).toBe(true);
- await page.evaluate(()=>{(window as any).__compressionBackup=CompressionStream;(window as any).CompressionStream=class {constructor(){throw new Error('PNG compression failed');}};});
+ await page.route(/\/src\/image-io-worker\.ts(?:\?.*)?$/,async route=>{const response=await route.fetch();await route.fulfill({response,body:"self.CompressionStream=class {constructor(){throw new Error('PNG compression failed');}};\n"+await response.text(),contentType:'application/javascript'});});
  await page.locator('#exportPng').click();await expect(page.locator('#status')).toContainText('PNG compression failed');
  expect(await page.evaluate(()=>(window as any).__validation.getHistoryState().dirty)).toBe(true);
  expect(await page.evaluate(()=>(window as any).__validation.getSnapshot())).toEqual(before);
- await page.evaluate(()=>{(window as any).CompressionStream=(window as any).__compressionBackup;});
+ await page.unroute(/\/src\/image-io-worker\.ts(?:\?.*)?$/);
  const pending=page.waitForEvent('download');await page.locator('#exportPng').click();const download=await pending;expect(download.suggestedFilename()).toBe('simutrans-heightmap.png');
  const stream=await download.createReadStream();const chunks:Buffer[]=[];for await(const part of stream!)chunks.push(part);const bytes=Buffer.concat(chunks);
  expect([...bytes.subarray(0,8)]).toEqual([137,80,78,71,13,10,26,10]);

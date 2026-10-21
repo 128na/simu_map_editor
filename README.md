@@ -88,19 +88,21 @@ mainへのpushとmainでの手動ブラウザ計測が成功すると、[性能�
 
 GitHub CLIでリポジトリを読める認証を済ませてから `npm run performance:export` を実行すると、公式CIボットの記録を取得し `.validation/performance-history.csv` へ集約します。引数で出力先を変更できます（例: `npm run performance:export -- .validation/history.csv`）。1行は1実行・サイズ・操作で、単位はmsです。CPU/ブラウザ、計測バージョン、環境を分けて比較してください。数値は平均せず、生の各試行から中央値を再計算します。ローカル計測は識別情報を保存しますが、自動ではIssueへ投稿しません。
 
-持続負荷の計測は `npm run benchmark:sustained` で実行します。ローカルのChromeで、既定は4096四方・ブラシ半径40・強さ1、60秒かつ最低12サイクルです。造成・非同期履歴退避を繰り返し、3サイクルごとにUndo/Redo後の地形と格子をダイジェストで照合します。通常CIでは実行しません。条件変更の例:
+持続負荷の計測は `npm run benchmark:sustained -- --project sustained-chrome` で実行します。ローカルのChromeで、既定は4096四方・ブラシ半径40・強さ1、60秒かつ最低12サイクルです。造成・非同期履歴退避を繰り返し、3サイクルごとにUndo/Redo後の地形と格子をダイジェストで照合します。通常CIでは実行しません。条件変更の例:
 
 ```powershell
 $env:SUSTAINED_SIZE='4096'
 $env:SUSTAINED_SECONDS='60'
 $env:SUSTAINED_CYCLES='12'
 $env:SUSTAINED_RADIUS='40'
-npm run benchmark:sustained
+npm run benchmark:sustained -- --project sustained-chrome
 ```
 
-サイズは256〜8192、秒数は1〜600、最低サイクル数は2〜300、半径は1〜40、`SUSTAINED_AMOUNT` は1〜8です。最大300サイクルで打ち切り、指定時間未達なら未完了として記録します。`.validation/sustained-*.json` にソースSHA・GPU・操作別時間・フレーム間隔・同期履歴登録時間・保存量・参考JSヒープを残し、途中失敗時も取得済みの記録を保存します。前半／中盤／後半はサイクル数による三分割です。時刻基準はJSONへ明記します。
+サイズは256〜8192、秒数は1〜900、最低サイクル数は2〜300、半径は1〜256（40超は検証時に画面の上限設定も変更）、`SUSTAINED_AMOUNT` は1〜8です。最大サイクル数は `SUSTAINED_MAX_CYCLES`（最低サイクル数〜10000、既定3000）で指定でき、その回数で打ち切り、指定時間未達なら未完了として記録します。この計測だけ履歴件数上限を最大サイクル数に合わせ、RAM 64 MiB・保存量512 MiBの予算は維持します。`.validation/sustained-*.json` にソースSHA・GPU・操作別時間・フレーム間隔・同期履歴登録時間・保存量・参考JSヒープを残し、途中失敗時も取得済みの記録を保存します。`SUSTAINED_TERRAIN` は `flat`（既定）・`coast`（複雑な海岸線）・`slopes`（標高範囲を含む斜面帯）を選べます。`--project sustained-edge` でEdge、`--repeat-each 2` で独立した複数試行を実行します。`SUSTAINED_PATTERN=raise-smooth` は盛土と平滑化を交互に、`SUSTAINED_PATH=reversal` は同じ9点で折返しを行います。`SUSTAINED_SMOOTHING_RADIUS`（1〜16）と `SUSTAINED_SMOOTHING_MODE`（surface/slope）も記録します。平滑化が無変更だったサイクルは件数とドラッグ時間を別に記録し、地形・格子が不変であることを確認してUndo/Redo照合を省きます。操作計測終了後にPNG書出・再取込を行い、標高と外周格子を照合します。この往復時間は `workloadElapsedMs` に含めません。前半／中盤／後半はサイクル数による三分割です。時刻基準はJSONへ明記します。
 
 フレーム間隔はメインスレッドの応答指標で、描画fpsではありません。静止中は描画を休止します。JSヒープはGPU・Worker・多くのArrayBufferを含まない参考値で、総メモリやリークの有無を示しません。操作全体にはテストドライバの待機時間も含むため、同期処理時間と分けて評価してください。
+
+画像変換の計測は `npm run benchmark:image-io` で実行します。4096・8192四方の平坦地形についてBMP/PNGのWorker書出・読込・正規化を測り、`.validation/image-io-chrome.json` へ段階別時間・フレーム間隔・配列サイズの部分見積もりを保存します。通常CIでは実行しません。`IMAGE_IO_BROWSER=msedge` または `chromium` でブラウザを変更できます。ファイル選択・確認待ち・最終的な地形描画反映は計測外です。配列見積もりは同時使用量や総メモリの実測ではなく、PNG圧縮内部・GPU・Blobコピーなどを含みません。BMPの出力行と出力ファイルは同じ配列なので合算できません。
 
 ## ドキュメント
 

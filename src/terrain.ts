@@ -229,6 +229,28 @@ function rememberLegal(map: Heightmap, key: string): void {
   if (!keys) { keys = new Set(); legalMaps.set(map, keys); }
   keys.add(key);
 }
+/** Prove a history result without scanning unchanged samples.
+ * Only call with an immutable current map and a next map made by copying it and
+ * changing exactly indices, as AsyncHistory.move does. Unknown current proofs
+ * deliberately fall back to toGrid; raw pre-normalization Undo targets can also
+ * fail this check. A bounding rectangle alone cannot establish this contract. */
+export function proveLocalHistoryMap(current:Heightmap,next:Heightmap,p:Profile,indices:Uint32Array):boolean {
+  const key=profileKey(p);
+  if(!legalMaps.get(current)?.has(key))return false;
+  const {width:w,height:h,heights}=next;
+  if(w!==current.width||h!==current.height||heights.length!==current.heights.length||!indices.length)return false;
+  const reachable=new Set(Array.from({length:256},(_,v)=>decodeSample(v,p)));
+  for(const i of indices){
+    if(!Number.isInteger(i)||i<0||i>=heights.length||!reachable.has(heights[i]))return false;
+    const x=i%w,y=Math.floor(i/w),value=heights[i];
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(x+dx<0||x+dx>=w||y+dy<0||y+dy>=h)continue;
+      if(Math.abs(value-heights[(y+dy)*w+x+dx])>p.maxSlope)return false;
+    }
+  }
+  rememberLegal(next,key);
+  return true;
+}
 function isLegal(map: Heightmap, p: Profile, key: string): boolean {
   if (legalMaps.get(map)?.has(key)) return true;
   validMap(map); profile(p);

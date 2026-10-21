@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { Heightmap } from '../src/terrain.ts';
+import {applyBrushIncremental,DEFAULT_PROFILE,proveLocalHistoryMap,toGrid,type Heightmap} from '../src/terrain.ts';
 import { AsyncHistory, createPatch, type HistoryStore } from '../src/history.ts';
 const map = (...values: number[]): Heightmap => ({width: values.length, height: 1, heights: Float32Array.from(values)});
 const patch = (a: number[], b: number[]) => createPatch(map(...a), map(...b))!;
@@ -105,4 +105,39 @@ test('old generation cleanup failure does not stop new generation writes',async(
   const store=new Store(), errors:Error[]=[];const h=new AsyncHistory(store,{onError:e=>errors.push(e)});
   h.record(patch([0],[1]));await h.settled();store.delete=async()=>{throw new Error('old delete failed');};
   h.reset();h.record(patch([4],[5]));await h.settled();assert.equal(h.getState().failed,false);assert.equal(h.getState().queuedBytes,0);assert.equal(errors.length,0);
+});
+
+
+test('history callbacks receive exact changed indices for pending and stored moves before cursor commit',async()=>{
+ const store=new Store(),pending=gate();store.putGate=pending.promise;
+ const history=new AsyncHistory(store),original=map(0,0,0);let current=map(1,0,2);
+ history.record(createPatch(original,current)!);
+ const seen:{indices:number[];undoCount:number}[]=[];
+ await history.undo(current,(next,indices)=>{seen.push({indices:[...indices],undoCount:history.getState().undoCount});assert.notEqual(next.heights,current.heights);assert.deepEqual([...current.heights],[1,0,2]);current=next;});
+ pending.resolve();await history.settled();
+ await history.redo(current,(next,indices)=>{seen.push({indices:[...indices],undoCount:history.getState().undoCount});current=next;});
+ assert.deepEqual(seen,[{indices:[0,2],undoCount:1},{indices:[0,2],undoCount:0}]);
+ const saved=current;
+ await assert.rejects(history.undo(current,(next,indices)=>{assert.deepEqual([...indices],[0,2]);next.heights[1]=9;throw new Error('renderer failed');}),/renderer failed/);
+ assert.deepEqual([...saved.heights],[1,0,2]);assert.equal(history.getState().undoCount,1);assert.equal(history.getState().reading,false);
+});
+
+test('first-stroke Undo and Redo fall back for raw sources instead of applying source-plus-one',async()=>{
+ for(const value of [.5,100,20]){
+  const p={...DEFAULT_PROFILE,mode:'clamp' as const};
+  const original:Heightmap={width:17,height:11,heights:new Float32Array(17*11)};original.heights[0]=value;
+  const originalGrid=toGrid(original,p);
+  const edited=applyBrushIncremental(original,p,{x:4,y:3,radius:2,amount:3,tool:'raise'});
+  assert.equal(edited.incremental,false);const editedGrid=toGrid(edited.map,p);
+  const history=new AsyncHistory(new Store());history.record(createPatch(original,edited.map)!);await history.settled();let current=edited.map,grid=editedGrid;
+  const decisions:boolean[]=[];
+  const restore=(next:Heightmap,indices:Uint32Array)=>{
+   const incremental=proveLocalHistoryMap(current,next,p,indices);decisions.push(incremental);
+   assert.equal(incremental,false);current=next;grid=toGrid(next,p);
+  };
+  await history.undo(current,restore);assert.deepEqual(current.heights,original.heights);assert.deepEqual(grid,originalGrid);
+  assert.ok(grid.some((v,i)=>v!==current.heights[Math.min(Math.floor(i/(current.width+1)),current.height-1)*current.width+Math.min(i%(current.width+1),current.width-1)]+1));
+  await history.redo(current,restore);assert.deepEqual(current.heights,edited.map.heights);assert.deepEqual(grid,editedGrid);
+  assert.deepEqual(decisions,[false,false]);
+ }
 });
