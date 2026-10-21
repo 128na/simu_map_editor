@@ -24,7 +24,7 @@ function normalize(value: unknown): Preferences {
     version: 1,
     tool: candidate.tool === 'raise' || candidate.tool === 'lower' || candidate.tool === 'flatten' || candidate.tool === 'smooth'
       ? candidate.tool : DEFAULT_PREFERENCES.tool,
-    radius: integer(candidate.radius, 1, 40, DEFAULT_PREFERENCES.radius),
+    radius: integer(candidate.radius, 1, 256, DEFAULT_PREFERENCES.radius),
     amount: integer(candidate.amount, 1, 8, DEFAULT_PREFERENCES.amount),
     ...(typeof candidate.grid==='boolean'?{grid:candidate.grid}:{}),
     view: candidate.view === 'oblique' || candidate.view === 'top' ? candidate.view : DEFAULT_PREFERENCES.view,

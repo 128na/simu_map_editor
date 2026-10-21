@@ -98,3 +98,13 @@ test('8192 water accepts a shoreline above the old aggregate limit and still rej
  console.log(JSON.stringify({scenario:'8192 shoreline 512-square checkerboard',...metrics}));
  surface.dispose();
 });
+
+
+test('live water budget changes preserve geometry and reject a budget below current usage',()=>{
+ const w=256,grid=Int16Array.from({length:(w+1)*(w+1)},(_,i)=>(i%(w+1)+Math.floor(i/(w+1)))%2?-1:1),surface=new WaterSurface(grid,w,w,0,{budgetBytes:32*1048576});
+ const children=surface.children.slice();assert.equal(surface.metrics.budgetBytes,32*1048576);
+ assert.throws(()=>surface.setBudget(1048576));assert.equal(surface.metrics.budgetBytes,32*1048576);assert.deepEqual(surface.children,children);
+ surface.setBudget(64*1048576);assert.equal(surface.metrics.budgetBytes,64*1048576);assert.deepEqual(surface.children,children);
+ surface.setBudget();assert.equal(surface.metrics.budgetBytes,16*1048576);
+ for(const bytes of [0,NaN,257*1048576])assert.throws(()=>surface.setBudget(bytes));surface.dispose();
+});

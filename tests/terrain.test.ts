@@ -351,3 +351,91 @@ test('gesture no-op remains lazy before its first owned edit',()=>{
  assert.ok(original.heights.every(v=>v===0));
  assert.equal(session.finish(),edited.map);
 });
+
+
+test('wide smoothing spreads a finite integer slope over more tiles without flattening its levels',()=>{
+ const original=map(65,65);
+ for(let y=0;y<65;y++)for(let x=0;x<65;x++)original.heights[y*65+x]=Math.max(0,Math.min(4,x-30));
+ const saved=original.heights.slice(),brush={x:32,y:32,radius:20,amount:1,tool:'smooth' as const};
+ const narrow=applyBrush(original,P,{...brush,smoothingRadius:1}).map,wide=applyBrushIncremental(original,P,{...brush,smoothingRadius:4}).map;
+ const row=(m:Heightmap)=>Array.from(m.heights.subarray(32*65,33*65));
+ const start=(m:Heightmap)=>row(m).findIndex(v=>v>0),end=(m:Heightmap)=>row(m).findIndex(v=>v===4);
+ assert.ok(start(wide)<start(original));assert.ok(end(wide)>end(original));
+ assert.ok(end(wide)-start(wide)>end(narrow)-start(narrow));
+ assert.deepEqual(row(wide).slice(28,37),[0,1,1,2,2,2,3,3,4]);
+ assert.equal(wide.heights[32*65+20],0);assert.equal(wide.heights[32*65+45],4);
+ assert.deepEqual(original.heights,saved);constrained(wide);
+ assert.deepEqual(toGrid(wide,P),toGrid(applyBrush(original,P,{...brush,smoothingRadius:4}).map,P));
+});
+
+test('broad smoothing agrees with a direct neighborhood oracle at clipped map edges',()=>{
+ const original=map(19,13);
+ for(let y=0;y<13;y++)for(let x=0;x<19;x++)original.heights[y*19+x]=Math.max(0,Math.min(4,x-8));
+ for(const radius of [1,4,16]){
+  // Entire map is selected and the source is an eight-neighbor legal ramp.
+  const actual=applyBrush(original,P,{x:9,y:6,radius:40,amount:1,tool:'smooth',smoothingRadius:radius}).map;
+  for(let y=0;y<13;y++)for(let x=0;x<19;x++){
+   let sum=0,count=0;
+   for(let ny=Math.max(0,y-radius);ny<=Math.min(12,y+radius);ny++)for(let nx=Math.max(0,x-radius);nx<=Math.min(18,x+radius);nx++){sum+=original.heights[ny*19+nx];count++;}
+   assert.equal(actual.heights[y*19+x],Math.round(sum/count));
+  }
+ }
+});
+
+test('wide smoothing remains equivalent across crops, profiles, paths and owned gestures',()=>{
+ for(const mode of ['linear','clamp','legacy-small','legacy-large'] as Mode[])for(const maxSlope of [1,2] as const){
+  const p={...P,mode,maxSlope},original=map(211,191,decodeSample(80,p));
+  const lo=decodeSample(80,p),hi=decodeSample(180,p);
+  for(let y=0;y<191;y++)for(let x=0;x<211;x++)original.heights[y*211+x]=Math.min(hi,lo+Math.max(0,x-98)*maxSlope);
+  const session=createBrushSession(original,p);let full=original;
+  for(const [x,y,from,smoothingRadius,amount] of [[100,90,{x:10,y:15},4,3],[0,0,{x:100,y:90},16,8],[205,180,{x:0,y:0},9,2]] as const){
+   const brush={x,y,from,radius:7,amount,tool:'smooth' as const,smoothingRadius},expected=applyBrush(full,p,brush),actual=session.apply(brush);
+   assert.deepEqual(actual.map.heights,expected.map.heights,`${mode}/${maxSlope}/${x},${y}/${smoothingRadius}`);
+   assert.equal(actual.changed,expected.changed);constrained(actual.map,maxSlope);full=expected.map;
+  }
+  assert.deepEqual(session.finish().heights,full.heights);
+  const stable=original.heights.slice();
+  for(const smoothingRadius of [0,17,NaN,1.5])assert.throws(()=>applyBrushIncremental(original,p,{x:1,y:1,radius:1,amount:1,tool:'smooth',smoothingRadius}),/smoothing radius/);
+  assert.deepEqual(original.heights,stable);
+ }
+});
+
+
+test('slope smoothing reduces a straight slope around its pivot and strength controls the easing',()=>{
+ for(const maxSlope of [1,2] as const){
+  const p={...P,maxSlope},original=map(101,101);
+  for(let y=0;y<101;y++)for(let x=0;x<101;x++)original.heights[y*101+x]=Math.max(-8,Math.min(8,(x-50)*maxSlope));
+  const saved=original.heights.slice(),brush={x:50,y:50,radius:16,tool:'smooth' as const,smoothingRadius:4,target:0};
+  const surface=applyBrush(original,p,{...brush,amount:1,smoothingMode:'surface'}).map;
+  const weak=applyBrushIncremental(original,p,{...brush,amount:1,smoothingMode:'slope'}).map;
+  const strong=applyBrushIncremental(original,p,{...brush,amount:8,smoothingMode:'slope'}).map;
+  const rise=(m:Heightmap)=>m.heights[50*101+52]-m.heights[50*101+48];
+  if(maxSlope===1)assert.equal(rise(surface),rise(original));
+  assert.ok(rise(weak)<rise(surface));assert.ok(rise(weak)<rise(original));assert.ok(rise(strong)<rise(weak));
+  assert.equal(weak.heights[50*101+50],0);assert.equal(strong.heights[50*101+50],0);
+  for(const actual of [weak,strong]){
+   constrained(actual,maxSlope);assert.equal(actual.heights[50*101+20],-8);assert.equal(actual.heights[50*101+80],8);assert.equal(actual.heights[0],original.heights[0]);
+   assert.deepEqual(toGrid(actual,p),toGrid({...actual,heights:Float32Array.from(encodeSamples(actual,p),v=>decodeSample(v,p))},p));
+  }
+  assert.deepEqual(original.heights,saved);
+ }
+});
+
+test('slope smoothing preserves local/full and owned-gesture agreement across profiles and paths',()=>{
+ for(const mode of ['linear','clamp','legacy-small','legacy-large'] as Mode[])for(const maxSlope of [1,2] as const){
+  const p={...P,mode,maxSlope},pivot=decodeSample(128,p),lo=decodeSample(0,p),hi=decodeSample(255,p),original=map(319,277);
+  for(let y=0;y<277;y++)for(let x=0;x<319;x++)original.heights[y*319+x]=Math.max(lo,Math.min(hi,pivot+(x-159)*maxSlope));
+  const saved=original.heights.slice(),session=createBrushSession(original,p);let full=original;
+  for(const [x,y,from,smoothingRadius,amount] of [[159,138,{x:151,y:131},4,1],[305,260,{x:10,y:20},16,8],[0,0,{x:80,y:60},7,3]] as const){
+   const brush={x,y,from,radius:16,amount,tool:'smooth' as const,smoothingRadius,smoothingMode:'slope' as const,target:pivot};
+   const expected=applyBrush(full,p,brush),actual=session.apply(brush);
+   assert.deepEqual(actual.map.heights,expected.map.heights,`${mode}/${maxSlope}/${x},${y}`);assert.equal(actual.changed,expected.changed);constrained(actual.map,maxSlope);full=expected.map;
+  }
+  assert.deepEqual(session.finish().heights,full.heights);assert.deepEqual(original.heights,saved);
+  const fallback={x:163,y:141,radius:13,amount:3,tool:'smooth' as const,smoothingMode:'slope' as const,smoothingRadius:5};
+  assert.deepEqual(applyBrushIncremental(original,p,fallback).map.heights,applyBrush(original,p,fallback).map.heights);
+ }
+ const original=map(5,5);
+ assert.throws(()=>applyBrushIncremental(original,P,{x:2,y:2,radius:1,amount:1,tool:'smooth',smoothingMode:'unknown' as 'slope'}),/smoothing mode/);
+ assert.throws(()=>applyBrushIncremental(original,P,{x:2,y:2,radius:1,amount:1,tool:'smooth',smoothingMode:'slope',target:.5}),/representable/);
+});

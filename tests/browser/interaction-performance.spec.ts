@@ -14,6 +14,7 @@ test('continuous sculpting update latency 4096',async({page,browser},info)=>{
   for(const file of ['terrain-surface.ts','terrain.ts','grid-patch.ts','water-surface.ts','water.ts']){
    let original:string;
    try{original=execFileSync('git',['show',`${baselineRef}:src/${file}`],{encoding:'utf8',stdio:['ignore','pipe','pipe']});}catch{throw new Error('Baseline module set is incompatible; measure that commit in its own checkout and retain the JSON before switching revisions');}
+   if(file==='terrain-surface.ts'&&(!original.includes(' setView(')||!original.includes(' configure(')))throw new Error('Baseline display API is incompatible; measure that commit in its own checkout and retain the JSON before switching revisions');
    if(file==='terrain.ts'&&!original.includes('export function createBrushSession(')||file==='grid-patch.ts'&&!original.includes('export function prepareGridPatch('))throw new Error('Baseline module API is incompatible; measure that commit in its own checkout and retain the JSON before switching revisions');
    const transformed=await transformWithOxc(original,`src/${file}`);
    await page.route(`**/src/${file}`,async route=>{

@@ -176,3 +176,57 @@ test('failed retained-detail promotion leaves existing geometry and LRU unchange
  assert.deepEqual(chunks(surface).map(m=>m.geometry),before);assert.deepEqual(surface.metrics,metrics);
  (surface as any).geometry=original;surface.dispose();shared.dispose();
 });
+
+
+function topCamera(x:number,z:number,span:number){
+ const camera=new THREE.OrthographicCamera(-span/2,span/2,span/2,-span/2,.1,2000);
+ camera.position.set(x,500,z);camera.up.set(0,0,-1);camera.lookAt(x,0,z);camera.updateProjectionMatrix();camera.updateMatrixWorld();return camera;
+}
+
+test('view-aware detail covers the viewport independently of cursor within the total cell budget',()=>{
+ const shared=material(),surface=new TerrainSurface(shared,{chunkSize:16,cellBudget:1024}),w=128,h=128;
+ surface.update(new Int16Array((w+1)*(h+1)),w,h,-2);
+ assert.equal(surface.metrics.stride,4);
+ surface.setView(topCamera(0,0,28),900);
+ const central=chunks(surface).filter(m=>m.geometry.userData.x0>=48&&m.geometry.userData.x0<80&&m.geometry.userData.y0>=48&&m.geometry.userData.y0<80);
+ assert.equal(central.length,4);assert.ok(central.every(m=>m.geometry.userData.stride<=2));
+ assert.ok(surface.metrics.regularCells<=1024);assert.equal(surface.metrics.viewAware,true);
+ // A cursor far outside the viewport cannot allocate an extra unbudgeted region.
+ surface.focus(2,2,1);assert.ok(surface.metrics.regularCells<=1024);
+ const nearCenter=central.map(m=>m.geometry.userData.stride);assert.ok(nearCenter.every(s=>s<=2));
+ surface.setView(topCamera(56,56,8),900);
+ const destination=chunks(surface).find(m=>m.geometry.userData.x0===112&&m.geometry.userData.y0===112)!;
+ assert.equal(destination.geometry.userData.stride,1);
+ assert.ok(surface.metrics.regularCells<=1024);
+ surface.dispose();shared.dispose();
+});
+
+test('view plans reuse geometry when camera and quality are unchanged, and quality updates are atomic',()=>{
+ const shared=material(),surface=new TerrainSurface(shared,{chunkSize:16,cellBudget:1024}),w=128,h=128;
+ surface.update(new Int16Array((w+1)*(h+1)),w,h,-2);const camera=topCamera(0,0,96);surface.setView(camera,900);
+ const initial=chunks(surface).map(m=>m.geometry),initialCells=surface.metrics.regularCells;
+ surface.setView(camera,900);assert.deepEqual(chunks(surface).map(m=>m.geometry),initial);
+ surface.configure({cellBudget:4096});assert.ok(surface.metrics.regularCells>initialCells);assert.ok(surface.metrics.regularCells<=4096);
+ const before=chunks(surface).map(m=>m.geometry),metrics=surface.metrics;
+ const original=(surface as any).geometry;(surface as any).geometry=()=>{throw new Error('allocation rejected');};
+ assert.throws(()=>surface.configure({cellBudget:16384}),/allocation rejected/);
+ assert.deepEqual(chunks(surface).map(m=>m.geometry),before);assert.deepEqual(surface.metrics,metrics);
+ assert.throws(()=>surface.setView(topCamera(48,48,20),900),/allocation rejected/);
+ assert.deepEqual(chunks(surface).map(m=>m.geometry),before);assert.deepEqual(surface.metrics,metrics);
+ (surface as any).geometry=original;
+ surface.configure({cellBudget:256});assert.ok(surface.metrics.regularCells<=256);
+ assert.throws(()=>surface.configure({cellBudget:0}),/Invalid/);assert.throws(()=>surface.configure({cellBudget:16777217}),/Invalid/);
+ assert.throws(()=>surface.setView(camera,0),/Invalid/);
+ surface.dispose();shared.dispose();
+});
+
+test('view-aware mixed strides preserve exact boundary vertices and partial updates',()=>{
+ const shared=material(),surface=new TerrainSurface(shared,{chunkSize:8,cellBudget:128}),fresh=new TerrainSurface(shared,{chunkSize:8,cellBudget:128}),w=40,h=32;
+ const grid=Int16Array.from({length:(w+1)*(h+1)},(_,i)=>i%7-3),camera=topCamera(-10,-6,18);
+ surface.update(grid,w,h,-2);surface.setView(camera,900);fresh.update(grid,w,h,-2);fresh.setView(camera,900);
+ const next=grid.slice();next[8*(w+1)+16]+=2;const dirty={x0:16,y0:8,x1:16,y1:8};
+ surface.update(next,w,h,-2,dirty);fresh.update(next,w,h,-2,dirty);fresh.update(next,w,h,-2);
+ assert.ok(surface.metrics.regularCells<=128);
+ for(let i=0;i<surface.children.length;i++)for(const name of ['position','normal','color'])assert.deepEqual(chunks(surface)[i].geometry.getAttribute(name).array,chunks(fresh)[i].geometry.getAttribute(name).array);
+ surface.dispose();fresh.dispose();shared.dispose();
+});

@@ -16,8 +16,9 @@ export class WaterSurface extends THREE.Group {
  private sea=0;
  private generation=0;
  private disposed=false;
- constructor(grid:Int16Array,w:number,h:number,sea:number){
-  super();
+ private budgetOverride:number|undefined;
+ constructor(grid:Int16Array,w:number,h:number,sea:number,options:{budgetBytes?:number}={}){
+  super();this.validateBudget(options.budgetBytes);this.budgetOverride=options.budgetBytes;
   const pending=this.prepareUpdate(grid,w,h,sea);pending.commit();
  }
  private build(grid:Int16Array,w:number,h:number,sea:number,c:Omit<Chunk,'mesh'>):Chunk{
@@ -36,7 +37,7 @@ export class WaterSurface extends THREE.Group {
   if(this.disposed)throw new Error('Water surface is disposed');
   if(!Number.isSafeInteger(w)||!Number.isSafeInteger(h)||w<1||h<1||grid.length!==(w+1)*(h+1)||!Number.isFinite(sea))throw new Error('Invalid water grid dimensions or sea level');
   if(dirty&&(![dirty.x0,dirty.x1,dirty.y0,dirty.y1].every(Number.isInteger)||dirty.x0<0||dirty.y0<0||dirty.x1>w||dirty.y1>h||dirty.x0>dirty.x1||dirty.y0>dirty.y1))throw new Error('Invalid water dirty bounds');
-  const budget=waterGeometryBudget(w,h);
+  const budget=this.budgetOverride??waterGeometryBudget(w,h);
   const full=!dirty||w!==this.width||h!==this.height||sea!==this.sea;
   const next=full?[] as Chunk[]:this.chunks.slice();
   const targets:{index:number;bounds:Omit<Chunk,'mesh'>}[]=[];
@@ -65,7 +66,9 @@ export class WaterSurface extends THREE.Group {
    dispose:()=>{if(state==='pending'){for(const c of created)release(c.mesh);state='disposed';}}
   };
  }
+ private validateBudget(bytes:number|undefined){if(bytes!==undefined&&(!Number.isSafeInteger(bytes)||bytes<1048576||bytes>256*1048576))throw new Error('水面予算は1〜256 MiBで指定してください');}
+ setBudget(bytes?:number){this.validateBudget(bytes);if(this.disposed)throw new Error('Water surface is disposed');const next=bytes??waterGeometryBudget(this.width,this.height);if(this.metrics.geometryBytes>next)throw waterBudgetError(next);this.budgetOverride=bytes;}
  get materials(){return this.chunks.flatMap(c=>c.mesh?[c.mesh.material]:[]);}
- get metrics(){let geometryBytes=0,triangles=0;for(const c of this.chunks)if(c.mesh){geometryBytes+=bytes(c.mesh);triangles+=c.mesh.geometry.getAttribute('position').count/3;}return {geometryBytes,triangles,budgetBytes:waterGeometryBudget(this.width||1,this.height||1)};}
+ get metrics(){let geometryBytes=0,triangles=0;for(const c of this.chunks)if(c.mesh){geometryBytes+=bytes(c.mesh);triangles+=c.mesh.geometry.getAttribute('position').count/3;}return {geometryBytes,triangles,budgetBytes:this.budgetOverride??waterGeometryBudget(this.width||1,this.height||1)};}
  dispose(){if(this.disposed)return;for(const c of this.chunks)release(c.mesh);this.clear();this.chunks=[];this.disposed=true;this.generation++;}
 }

@@ -16,7 +16,7 @@ test('valid map-independent preferences survive a storage round trip', () => {
 test('invalid fields fall back independently without coercing strings or fractional numbers', () => {
   assert.deepEqual(read({version: 1, tool: 'raise', radius: '40', amount: 2, view: 'top'}),
     {...DEFAULT_PREFERENCES, amount: 2, view: 'top'});
-  for (const radius of [0, 41, 1.5, null]) assert.equal(read({version: 1, radius}).radius, 8);
+  for (const radius of [0, 257, 1.5, null]) assert.equal(read({version: 1, radius}).radius, 8);
   for (const amount of [0, 9, 1.5, '2']) assert.equal(read({version: 1, amount}).amount, 1);
   assert.deepEqual(read({version: 1, tool: 'paint', radius: 3, amount: 4, view: 'side'}),
     {...DEFAULT_PREFERENCES, radius: 3, amount: 4});

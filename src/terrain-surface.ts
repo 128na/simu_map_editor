@@ -8,7 +8,7 @@ interface Chunk {x0:number;y0:number;x1:number;y1:number;stride:number;mesh:THRE
 export class TerrainSurface extends THREE.Group {
  private readonly material:THREE.MeshStandardMaterial;
  private readonly chunkSize:number;
- private readonly cellBudget:number;
+ private cellBudget:number;
  private chunks:Chunk[]=[];
  private retained:Chunk[]=[];
  private readonly retainedLimit=12;
@@ -17,11 +17,12 @@ export class TerrainSurface extends THREE.Group {
  private height=0;
  private sea=0;
  private stride=1;
+ private viewState:{frustum:THREE.Frustum;position:THREE.Vector3;projectionScale:number;perspective:boolean}|null=null;
  private focusPoint:{x:number;y:number;radius:number}|null=null;
 
  constructor(material:THREE.MeshStandardMaterial,options:TerrainSurfaceOptions={}){
   super();this.material=material;this.chunkSize=options.chunkSize??256;this.cellBudget=options.cellBudget??1048576;
-  if(!Number.isInteger(this.chunkSize)||this.chunkSize<4||this.chunkSize>256||(this.chunkSize&(this.chunkSize-1))||!Number.isInteger(this.cellBudget)||this.cellBudget<1)throw new Error('Invalid terrain surface budget');
+  if(!Number.isInteger(this.chunkSize)||this.chunkSize<4||this.chunkSize>256||(this.chunkSize&(this.chunkSize-1))||!Number.isInteger(this.cellBudget)||this.cellBudget<1||this.cellBudget>16777216)throw new Error('Invalid terrain surface budget');
  }
 
  private overviewStride(w:number,h:number){
@@ -37,11 +38,65 @@ export class TerrainSurface extends THREE.Group {
   for(const chunk of chunks.filter(c=>distance(c)<=p.radius).sort((a,b)=>distance(a)-distance(b)).slice(0,4))selected.add(chunk);
   return selected;
  }
- private detailChunks(retained=this.retained,stride=this.stride){
-  const selected=this.focused(this.chunks,stride);
-  for(const chunk of retained)selected.add(chunk);
-  return selected;
+ /** Allocate regular cells across the visible map, rather than around the mouse.
+  * Full-resolution seam vertices are a separate bounded per-chunk overhead. */
+ private desiredStrides<T extends Pick<Chunk,'x0'|'y0'|'x1'|'y1'>>(chunks:T[],w:number,h:number,stride:number,retained:Pick<Chunk,'x0'|'y0'|'x1'|'y1'>[]=this.retained):Map<T,number>{
+  const focused=this.focused(chunks,stride),result=new Map<T,number>();
+  if(!this.viewState){
+   for(const chunk of chunks)result.set(chunk,focused.has(chunk)||retained.includes(chunk)?1:stride);
+   return result;
+  }
+  const state=this.viewState,box=new THREE.Box3(),center=new THREE.Vector3();
+  const count=(c:T,s:number)=>Math.ceil((c.x1-c.x0)/s)*Math.ceil((c.y1-c.y0)/s);
+  const candidates:{chunk:T;stride:number;cells:number;weight:number;order:number}[]=[];
+  let total=0;
+  for(const chunk of chunks){
+   const cells=count(chunk,this.chunkSize);total+=cells;result.set(chunk,this.chunkSize);
+   box.min.set(chunk.x0-w/2,-256,chunk.y0-h/2);box.max.set(chunk.x1-w/2,256,chunk.y1-h/2);
+   if(!state.frustum.intersectsBox(box))continue;
+   box.getCenter(center);
+   const distance=Math.max(1,state.position.distanceTo(center));
+   const pixelScale=state.perspective?state.projectionScale/distance:state.projectionScale;
+   const area=Math.max(1e-9,(chunk.x1-chunk.x0)*(chunk.y1-chunk.y0)*pixelScale*pixelScale);
+   // Editing preferences bias quality locally, but cannot consume extra cells.
+   const weight=area*(focused.has(chunk)?2:retained.includes(chunk)?1.25:1);
+   candidates.push({chunk,stride:this.chunkSize,cells,weight,order:result.size});
+  }
+  if(total>this.cellBudget)throw new Error('Terrain chunks exceed the display cell budget');
+  // Largest projected cells are refined first. At most log2(chunkSize) refinements
+  // per chunk; selection never allocates geometry until the final plan is known.
+  type Candidate=typeof candidates[number];
+  const higher=(a:Candidate,b:Candidate)=>a.weight/a.cells>b.weight/b.cells||a.weight/a.cells===b.weight/b.cells&&a.order<b.order;
+  const heap:Candidate[]=[];
+  const push=(item:Candidate)=>{let at=heap.length;heap.push(item);while(at){const parent=(at-1)>>1;if(!higher(item,heap[parent]))break;heap[at]=heap[parent];at=parent;}heap[at]=item;};
+  const pop=()=>{const first=heap[0],last=heap.pop()!;if(heap.length){let at=0;while(at*2+1<heap.length){let child=at*2+1;if(child+1<heap.length&&higher(heap[child+1],heap[child]))child++;if(!higher(heap[child],last))break;heap[at]=heap[child];at=child;}heap[at]=last;}return first;};
+  for(const item of candidates)push(item);
+  while(heap.length){
+   const item=pop();if(item.stride===1)continue;
+   const nextStride=item.stride/2,newCells=count(item.chunk,nextStride),extra=newCells-item.cells;
+   if(total+extra>this.cellBudget)continue;
+   total+=extra;item.stride=nextStride;item.cells=newCells;result.set(item.chunk,nextStride);if(nextStride>1)push(item);
+  }
+  return result;
  }
+ configure(options:{cellBudget:number}):void {
+  if(!Number.isInteger(options.cellBudget)||options.cellBudget<1||options.cellBudget>16777216)throw new Error('Invalid terrain surface budget');
+  if(options.cellBudget===this.cellBudget)return;
+  const previous=this.cellBudget,previousStride=this.stride;
+  this.cellBudget=options.cellBudget;
+  try{if(this.width&&this.height)this.stride=this.overviewStride(this.width,this.height);this.refreshFocus();}
+  catch(error){this.cellBudget=previous;this.stride=previousStride;throw error;}
+ }
+ /** Call after a completed/debounced camera move or resize, not each frame. */
+ setView(camera:THREE.Camera,viewportHeight:number):void {
+  if(!Number.isFinite(viewportHeight)||viewportHeight<=0)throw new Error('Invalid terrain viewport height');
+  camera.updateMatrixWorld();
+  const matrix=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
+  const next={frustum:new THREE.Frustum().setFromProjectionMatrix(matrix),position:camera.getWorldPosition(new THREE.Vector3()),projectionScale:Math.abs(camera.projectionMatrix.elements[5])*viewportHeight/2,perspective:(camera as THREE.PerspectiveCamera).isPerspectiveCamera===true};
+  const previous=this.viewState;this.viewState=next;
+  try{this.refreshFocus();}catch(error){this.viewState=previous;throw error;}
+ }
+ clearView():void {const previous=this.viewState;this.viewState=null;try{this.refreshFocus();}catch(error){this.viewState=previous;throw error;}}
  private geometry(c:Pick<Chunk,'x0'|'y0'|'x1'|'y1'>,stride:number,grid=this.grid,w=this.width,h=this.height,sea=this.sea){
   const axis=(lo:number,hi:number)=>{const values:number[]=[];for(let v=lo;v<hi;v+=stride)values.push(v);values.push(hi);return values;};
   const xs=axis(c.x0,c.x1),ys=axis(c.y0,c.y1),cols=xs.length,rows=ys.length,regularCount=cols*rows;
@@ -135,8 +190,8 @@ export class TerrainSurface extends THREE.Group {
   if(resized){
    const specs:Pick<Chunk,'x0'|'y0'|'x1'|'y1'>[]=[];
    for(let y=0;y<h;y+=this.chunkSize)for(let x=0;x<w;x+=this.chunkSize)specs.push({x0:x,y0:y,x1:Math.min(w,x+this.chunkSize),y1:Math.min(h,y+this.chunkSize)});
-   const focus=this.focused(specs,stride),next:Chunk[]=[];
-   try{for(const bounds of specs){const detail=focus.has(bounds)?1:stride;next.push({...bounds,stride:detail,mesh:new THREE.Mesh(this.geometry(bounds,detail,grid,w,h,sea),this.material)});}}
+   const desired=this.desiredStrides(specs,w,h,stride,[]),next:Chunk[]=[];
+   try{for(const bounds of specs){const detail=desired.get(bounds)!;next.push({...bounds,stride:detail,mesh:new THREE.Mesh(this.geometry(bounds,detail,grid,w,h,sea),this.material)});}}
    catch(error){for(const chunk of next)chunk.mesh.geometry.dispose();throw error;}
    for(const chunk of this.chunks){this.remove(chunk.mesh);chunk.mesh.geometry.dispose();}
    this.chunks=next;this.retained=[];for(const chunk of next)this.add(chunk.mesh);
@@ -147,10 +202,10 @@ export class TerrainSurface extends THREE.Group {
     for(const chunk of this.chunks)if(chunk.x0<=dirty.x1&&chunk.x1>=dirty.x0&&chunk.y0<=dirty.y1&&chunk.y1>=dirty.y0){retained=retained.filter(c=>c!==chunk);retained.push(chunk);}
     retained=retained.slice(-this.retainedLimit);
    }
-   const focus=this.detailChunks(retained,stride),changedSea=sea!==this.sea;
+   const desiredStrides=this.desiredStrides(this.chunks,w,h,stride,retained),changedSea=sea!==this.sea;
    const replacements:{chunk:Chunk;geometry:THREE.BufferGeometry;stride:number}[]=[],patches:Chunk[]=[];
    try{for(const chunk of this.chunks){
-    const desired=focus.has(chunk)?1:stride;
+    const desired=desiredStrides.get(chunk)!;
     const affected=!dirty||changedSea||chunk.x0<=dirty.x1+1&&chunk.x1>=dirty.x0-1&&chunk.y0<=dirty.y1+1&&chunk.y1>=dirty.y0-1;
     if(chunk.stride!==desired||affected){
      if(dirty&&!changedSea&&chunk.stride===desired)patches.push(chunk);
@@ -172,11 +227,11 @@ export class TerrainSurface extends THREE.Group {
  clearFocus():void {const previous=this.focusPoint;this.focusPoint=null;try{this.refreshFocus();}catch(error){this.focusPoint=previous;throw error;}}
  private refreshFocus(){
   if(!this.chunks.length)return;
-  const focused=this.detailChunks(),replacements:{chunk:Chunk;geometry:THREE.BufferGeometry;stride:number}[]=[];
-  try{for(const chunk of this.chunks){const stride=focused.has(chunk)?1:this.stride;if(stride!==chunk.stride)replacements.push({chunk,geometry:this.geometry(chunk,stride),stride});}}
+  const desired=this.desiredStrides(this.chunks,this.width,this.height,this.stride),replacements:{chunk:Chunk;geometry:THREE.BufferGeometry;stride:number}[]=[];
+  try{for(const chunk of this.chunks){const stride=desired.get(chunk)!;if(stride!==chunk.stride)replacements.push({chunk,geometry:this.geometry(chunk,stride),stride});}}
   catch(error){for(const replacement of replacements)replacement.geometry.dispose();throw error;}
   for(const replacement of replacements){replacement.chunk.mesh.geometry.dispose();replacement.chunk.mesh.geometry=replacement.geometry;replacement.chunk.stride=replacement.stride;}
  }
- get metrics(){let geometryBytes=0,triangles=0;for(const chunk of this.chunks){const geometry=chunk.mesh.geometry;geometryBytes+=geometry.index!.array.byteLength;for(const attribute of Object.values(geometry.attributes))geometryBytes+=attribute.array.byteLength;triangles+=geometry.index!.count/3;}return {geometryBytes,triangles,stride:this.stride,chunkCount:this.chunks.length,retainedDetailCount:this.retained.length,detailedChunkCount:this.chunks.filter(c=>c.stride===1).length};}
- dispose():void {for(const chunk of this.chunks){this.remove(chunk.mesh);chunk.mesh.geometry.dispose();}this.chunks=[];this.retained=[];this.grid=new Int16Array();this.width=this.height=0;this.focusPoint=null;}
+ get metrics(){let geometryBytes=0,triangles=0,regularCells=0;for(const chunk of this.chunks){const geometry=chunk.mesh.geometry;geometryBytes+=geometry.index!.array.byteLength;for(const attribute of Object.values(geometry.attributes))geometryBytes+=attribute.array.byteLength;triangles+=geometry.index!.count/3;regularCells+=geometry.userData.regularCellCount;}return {geometryBytes,triangles,regularCells,cellBudget:this.cellBudget,viewAware:!!this.viewState,stride:this.stride,chunkCount:this.chunks.length,retainedDetailCount:this.retained.length,detailedChunkCount:this.chunks.filter(c=>c.stride===1).length};}
+ dispose():void {for(const chunk of this.chunks){this.remove(chunk.mesh);chunk.mesh.geometry.dispose();}this.chunks=[];this.retained=[];this.grid=new Int16Array();this.width=this.height=0;this.focusPoint=null;this.viewState=null;}
 }

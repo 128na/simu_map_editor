@@ -31,3 +31,11 @@ test('conversion change discards history even when only a past state is unrepres
  expect((await snapshot(page)).undoCount).toBe(1);await page.locator('#mode').selectOption('legacy-small');
  expect((await snapshot(page)).heights).toEqual(new Array(16).fill(0));expect((await snapshot(page)).undoCount).toBe(0);await expect(page.locator('#undo')).toBeDisabled();
 });
+
+
+test('sea level changes apply without dialogs and preserve source and history',async({page})=>{
+ await page.evaluate(()=>(window as any).__validation.stroke({x:16,y:16,radius:2,amount:3,tool:'raise'}));
+ const before=await snapshot(page);let dialogs=0;page.removeAllListeners('dialog');page.on('dialog',async d=>{dialogs++;await d.dismiss();});
+ for(const level of [-3,0,2]){await page.locator('#seaLevel').fill(String(level));await page.locator('#seaLevel').dispatchEvent('change');expect((await snapshot(page)).profile.seaLevel).toBe(level);}
+ const after=await snapshot(page);expect(dialogs).toBe(0);expect(after.heights).toEqual(before.heights);expect(after.undoCount).toBe(before.undoCount);
+});

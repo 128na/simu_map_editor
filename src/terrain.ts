@@ -4,7 +4,7 @@ export interface Heightmap { width: number; height: number; heights: Float32Arra
 export const DEFAULT_PROFILE: Profile = { mode: 'linear', min: -12, max: 32, factor: 1, maxSlope: 1, seaLevel: -2 };
 export const LIMITS = { maxEdge: 32766, maxTiles: 67108864, maxFileBytes: 268435456, standardEdge:4096, standardTiles:16777216 };
 export function validateDimensions(w: number, h: number): void {
-  if (!Number.isSafeInteger(w) || !Number.isSafeInteger(h) || w < 1 || h < 1 || w > LIMITS.maxEdge || h > LIMITS.maxEdge || w * h > LIMITS.maxTiles) throw new Error('各辺1〜32,766の整数、合計67,108,864タイル以下で指定してください（総数はエディタの資源制約です）');
+  if (!Number.isSafeInteger(w) || !Number.isSafeInteger(h) || w < 1 || h < 1 || w > LIMITS.maxEdge || h > LIMITS.maxEdge || w * h > LIMITS.maxTiles) throw new Error(`各辺1〜32,766の整数、合計${LIMITS.maxTiles.toLocaleString('ja-JP')}タイル以下で指定してください（総数は上限設定で変更できます）`);
 }
 function profile(p: Profile): void {
   // Keep two upper sentinel/offset steps inside the native signed-byte range.
@@ -123,7 +123,31 @@ export function toGrid(map: Heightmap, p: Profile): Int16Array {
   if(legal)rememberLegal(map,profileKey(p));
   return Int16Array.from(grid);
 }
-export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: number; radius: number; amount: number; tool: 'raise' | 'lower' | 'flatten' | 'smooth'; target?: number; from?: { x: number; y: number } }): { map: Heightmap; changed: number } {
+function brushSmoothingRadius(brush:{smoothingRadius?:number;smoothingMode?:string}):number {
+  if(brush.smoothingMode!==undefined&&brush.smoothingMode!=='surface'&&brush.smoothingMode!=='slope')throw new Error('Invalid smoothing mode');
+  const radius=brush.smoothingRadius??1;
+  if(!Number.isInteger(radius)||radius<1||radius>16)throw new Error('Invalid smoothing radius');
+  return radius;
+}
+/** Box means over a fixed snapshot. Only the selected samples are written;
+ * the summed-area table covers their neighborhood rather than the whole map. */
+function smoothSelected(previous:Float32Array,heights:Float32Array,selected:number[],w:number,h:number,radius:number):void {
+  let x0=w,y0=h,x1=0,y1=0;
+  for(const i of selected){const x=i%w,y=Math.floor(i/w);x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}
+  x0=Math.max(0,x0-radius);x1=Math.min(w-1,x1+radius);y0=Math.max(0,y0-radius);y1=Math.min(h-1,y1+radius);
+  const cols=x1-x0+2,rows=y1-y0+2,integral=new Float64Array(cols*rows);
+  for(let y=1;y<rows;y++){
+    let sum=0;const source=(y+y0-1)*w+x0,row=y*cols,above=row-cols;
+    for(let x=1;x<cols;x++){sum+=previous[source+x-1];integral[row+x]=integral[above+x]+sum;}
+  }
+  for(const i of selected){
+    const x=i%w,y=Math.floor(i/w),left=Math.max(0,x-radius)-x0,right=Math.min(w-1,x+radius)-x0+1,top=Math.max(0,y-radius)-y0,bottom=Math.min(h-1,y+radius)-y0+1;
+    const sum=integral[bottom*cols+right]-integral[top*cols+right]-integral[bottom*cols+left]+integral[top*cols+left];
+    heights[i]=Math.round(sum/((right-left)*(bottom-top)))||0;
+  }
+}
+export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: number; radius: number; amount: number; tool: 'raise' | 'lower' | 'flatten' | 'smooth'; target?: number; smoothingRadius?: number; smoothingMode?: 'surface'|'slope'; from?: { x: number; y: number } }): { map: Heightmap; changed: number } {
+  const smoothRadius=brushSmoothingRadius(brush);
   const base = baseline(map, p);
   if (![brush.x, brush.y, brush.radius, brush.amount].every(Number.isFinite) || brush.radius <= 0 || brush.amount < 0 || !['raise', 'lower', 'flatten', 'smooth'].includes(brush.tool)) throw new Error('Invalid brush');
   if (brush.from && ![brush.from.x,brush.from.y].every(Number.isFinite)) throw new Error('Invalid brush path');
@@ -147,23 +171,32 @@ export function applyBrush(map: Heightmap, p: Profile, brush: { x: number; y: nu
     envelope(upper, map.width, map.height, p.maxSlope, false);
     for (let i = 0; i < heights.length; i++) heights[i] = clamp(base[i], lower[i], upper[i]);
   } else if (brush.tool === 'smooth') {
-    // Each pass reads a fixed snapshot. Even strength 1 removes one-step
-    // isolated bumps; higher strengths repeat relaxation without fractional
-    // height state that would conflict with the exported integer terrain.
+    // Wider neighborhoods spread a finite terrace over more tiles, easing
+    // its average angle while retaining integer, game-compatible heights.
     const passes = clamp(Math.round(brush.amount), 0, 8);
+    const pivot=brush.target??base[clamp(Math.round(brush.y),0,map.height-1)*map.width+clamp(Math.round(brush.x),0,map.width-1)];
     for (let pass = 0; pass < passes; pass++) {
       const previous = pass === 0 ? base : heights.slice();
-      for (const i of selected) {
-        const x = i % map.width, y = Math.floor(i / map.width);
-        let sum = 0, count = 0;
-        for (let ny = Math.max(0, y - 1); ny <= Math.min(map.height - 1, y + 1); ny++) {
-          for (let nx = Math.max(0, x - 1); nx <= Math.min(map.width - 1, x + 1); nx++) { sum += previous[ny * map.width + nx]; count++; }
+      smoothSelected(previous,heights,selected,map.width,map.height,smoothRadius);
+      if(brush.smoothingMode==='slope'){
+        // Pull towards the start height through a smooth capsule taper. The
+        // reference is stable across a gesture when the caller passes target.
+        for(const i of selected){
+          const x=i%map.width,y=Math.floor(i/map.width),t=lengthSquared?clamp(((x-from.x)*dx+(y-from.y)*dy)/lengthSquared,0,1):0;
+          const distance=clamp(Math.hypot(x-from.x-t*dx,y-from.y-t*dy)/brush.radius,0,1);
+          const weight=.5*(1-distance*distance*(3-2*distance));
+          heights[i]=Math.round(heights[i]+(pivot-heights[i])*weight)||0;
         }
-        heights[i] = Math.round(sum / count) || 0;
+        // Both envelopes are slope-legal. Their rounded midpoint stays legal
+        // and avoids consistently pushing the lowered side back up.
+        const upper=heights.slice();
+        envelope(upper,map.width,map.height,p.maxSlope,true);
+        envelope(heights,map.width,map.height,p.maxSlope,false);
+        for(let i=0;i<heights.length;i++)heights[i]=Math.round((upper[i]+heights[i])/2)||0;
+      }else{
+        // Each pass remains integer and legal before the next snapshot.
+        envelope(heights, map.width, map.height, p.maxSlope, true);
       }
-      // Slopes are repaired after every pass, keeping the full and cropped
-      // paths identical and limiting influence to the existing cone halo.
-      envelope(heights, map.width, map.height, p.maxSlope, true);
     }
   } else {
     const lo = decodeSample(0, p), hi = decodeSample(255, p);
@@ -233,6 +266,7 @@ export function createBrushSession(original:Heightmap,p:Profile){
   };
 }
 function editBrush(map:Heightmap,p:Profile,brush:Brush,owned:boolean):IncrementalBrushResult {
+  const smoothRadius=brushSmoothingRadius(brush);
   const key = profileKey(p);
   const incremental = isLegal(map, p, key);
   if (!incremental) {
@@ -252,7 +286,8 @@ function editBrush(map:Heightmap,p:Profile,brush:Brush,owned:boolean):Incrementa
   // farther cones lie outside every possible source height. One extra cell
   // keeps the crop boundary unchanged. Legal input needs no baseline repair,
   // so no external seed can affect either normalization or the local edit.
-  const halo = Math.ceil((decodeSample(255, p) - decodeSample(0, p)) / p.maxSlope) + 1;
+  const smoothingHalo=brush.tool==='smooth'?clamp(Math.round(Number.isFinite(brush.amount)?brush.amount:0),0,8)*smoothRadius:0;
+  const halo = Math.ceil((decodeSample(255, p) - decodeSample(0, p)) / p.maxSlope) + 1 + smoothingHalo;
   const from = brush.from ?? brush;
   if (![brush.x, brush.y, from.x, from.y, brush.radius].every(Number.isFinite)) {
     applyBrush(map, p, brush); // Preserve the public validation error.

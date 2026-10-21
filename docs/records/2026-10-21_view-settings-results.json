@@ -1,0 +1,1563 @@
+{
+  "conditions": {
+    "baseRevision": "3426066",
+    "implementation": "working tree with viewport LOD, 4,194,304 default display cells; CPU operation benchmark after quality changes",
+    "note": "These are post-change measurements only; earlier lower-budget measurements use different display conditions."
+  },
+  "interaction": [
+    {
+      "metadata": {
+        "schemaVersion": 1,
+        "benchmarkVersion": "interaction-v1",
+        "recordedAt": "2026-10-21T03:04:20.873Z",
+        "revision": "34260664a602f569d18cae8a028b0523bd668a07",
+        "repository": null,
+        "runId": null,
+        "runAttempt": null,
+        "runUrl": null,
+        "workflow": null,
+        "environment": {
+          "node": "v26.4.0",
+          "os": "win32",
+          "arch": "x64",
+          "cpu": "12th Gen Intel(R) Core(TM) i9-12900F",
+          "runnerOS": null,
+          "runnerName": null
+        }
+      },
+      "browser": "chrome",
+      "browserVersion": "155.0.8059.85",
+      "size": 4096,
+      "conditions": {
+        "radius": 40,
+        "amount": 8,
+        "tool": "lower",
+        "trial": 1,
+        "overrideCounts": {},
+        "baselineRef": null,
+        "overrides": []
+      },
+      "inputPoints": 41,
+      "elapsedMs": 850,
+      "summary": {
+        "medianUpdateMs": 5.599999999627471,
+        "p95UpdateMs": 9.899999998509884,
+        "maxUpdateMs": 10.5,
+        "firstUpdateMs": 35.80000000074506
+      },
+      "updates": [
+        {
+          "kind": "start",
+          "totalMs": 35.80000000074506,
+          "coreMs": 20.40000000037253,
+          "gridMs": 1.1000000014901161,
+          "geometryMs": 2.799999998882413,
+          "waterMs": 9.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.899999998509884,
+          "coreMs": 2.899999998509884,
+          "gridMs": 0.19999999925494194,
+          "geometryMs": 1.699999999254942,
+          "waterMs": 4.200000001117587,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 7.100000001490116,
+          "coreMs": 1.300000000745058,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 1.1000000014901161,
+          "waterMs": 4.099999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6.699999999254942,
+          "coreMs": 1.1000000014901161,
+          "gridMs": 0.19999999925494194,
+          "geometryMs": 1.200000001117587,
+          "waterMs": 3.699999999254942,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6.400000000372529,
+          "coreMs": 1.099999999627471,
+          "gridMs": 0,
+          "geometryMs": 1,
+          "waterMs": 3.800000000745058,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.400000000372529,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 1,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.099999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 2,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.100000001490116,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.099999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.300000000745058,
+          "coreMs": 1.099999999627471,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 1.800000000745058,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.199999999254942,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 2,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.300000000745058,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 3.900000000372529,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 1.799999998882413,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.600000001490116,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.900000000372529,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.8000000007450581,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 1,
+          "gridMs": 0.19999999925494194,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 7.799999998882413,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.7999999988824129,
+          "waterMs": 5.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 10.5,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 2,
+          "waterMs": 7.100000001490116,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.199999999254942,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.900000000372529,
+          "waterMs": 7,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.100000001490116,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 6.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.399999998509884,
+          "coreMs": 0.8000000007450581,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 1.299999998882413,
+          "waterMs": 6.800000000745058,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.7999999988824129,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.800000000745058,
+          "coreMs": 1.099999999627471,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.600000001490116,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.700000001117587,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.7999999988824129,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.400000000372529,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.299999998882413,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.799999998882413,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.900000000372529,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.800000000745058,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.700000001117587,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.599999999627471,
+          "waterMs": 3.600000001490116,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.7999999988824129,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.400000000372529,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.599999999627471,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        }
+      ],
+      "frameIntervals": [
+        16.600000000000136,
+        50,
+        16.699999999999818,
+        16.800000000000182,
+        16.5,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.799999999999727,
+        16.600000000000364,
+        16.799999999999727,
+        16.59999999999991,
+        16.600000000000364,
+        16.799999999999727,
+        16.700000000000273,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.700000000000273,
+        16.699999999999818,
+        16.700000000000273,
+        16.5,
+        16.699999999999818,
+        16.699999999999818,
+        16.800000000000182,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.800000000000182,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.799999999999727,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818
+      ],
+      "metrics": {
+        "displayStride": 2,
+        "displayTriangles": 8779776,
+        "chunkCount": 256,
+        "displayCells": 4194304,
+        "displayCellBudget": 4194304,
+        "viewAware": true,
+        "gridVisible": false,
+        "triangles": 33554432,
+        "geometryBytes": 268225488,
+        "waterTriangles": 2320,
+        "waterGeometryBytes": 104400,
+        "waterBudgetBytes": 16777216,
+        "drawCalls": 262,
+        "renderedTriangles": 8782352,
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "webgl2": true
+      },
+      "history": {
+        "undoCount": 1,
+        "redoCount": 0,
+        "queuedBytes": 0,
+        "storedBytes": 385784,
+        "failed": false,
+        "reading": false,
+        "paused": false,
+        "memoryOnly": false,
+        "dirty": true
+      }
+    },
+    {
+      "metadata": {
+        "schemaVersion": 1,
+        "benchmarkVersion": "interaction-v1",
+        "recordedAt": "2026-10-21T03:04:24.530Z",
+        "revision": "34260664a602f569d18cae8a028b0523bd668a07",
+        "repository": null,
+        "runId": null,
+        "runAttempt": null,
+        "runUrl": null,
+        "workflow": null,
+        "environment": {
+          "node": "v26.4.0",
+          "os": "win32",
+          "arch": "x64",
+          "cpu": "12th Gen Intel(R) Core(TM) i9-12900F",
+          "runnerOS": null,
+          "runnerName": null
+        }
+      },
+      "browser": "chrome",
+      "browserVersion": "155.0.8059.85",
+      "size": 4096,
+      "conditions": {
+        "radius": 40,
+        "amount": 8,
+        "tool": "lower",
+        "trial": 2,
+        "overrideCounts": {},
+        "baselineRef": null,
+        "overrides": []
+      },
+      "inputPoints": 41,
+      "elapsedMs": 886,
+      "summary": {
+        "medianUpdateMs": 5.600000001490116,
+        "p95UpdateMs": 9.200000001117587,
+        "maxUpdateMs": 10.399999998509884,
+        "firstUpdateMs": 33.59999999962747
+      },
+      "updates": [
+        {
+          "kind": "start",
+          "totalMs": 33.59999999962747,
+          "coreMs": 19.90000000037253,
+          "gridMs": 0.900000000372529,
+          "geometryMs": 2.199999999254942,
+          "waterMs": 8.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 10.399999998509884,
+          "coreMs": 3.199999999254942,
+          "gridMs": 0.30000000074505806,
+          "geometryMs": 1.5,
+          "waterMs": 4.699999999254942,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6.800000000745058,
+          "coreMs": 1.099999999627471,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 1,
+          "waterMs": 4,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6.800000000745058,
+          "coreMs": 1.199999999254942,
+          "gridMs": 0.2000000011175871,
+          "geometryMs": 1.199999999254942,
+          "waterMs": 3.699999999254942,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6.200000001117587,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.900000000372529,
+          "waterMs": 3.800000000745058,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.099999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8999999985098839,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.099999999627471,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 1.799999998882413,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.100000001490116,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 1.800000000745058,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.199999999254942,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8999999985098839,
+          "waterMs": 1.800000000745058,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.099999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 2,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4,
+          "coreMs": 0.8000000007450581,
+          "gridMs": 0.19999999925494194,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 1.800000000745058,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 3.800000000745058,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 1.799999998882413,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.700000001117587,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.799999998882413,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.7999999988824129,
+          "gridMs": 0,
+          "geometryMs": 0.599999999627471,
+          "waterMs": 3.600000001490116,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.8000000007450581,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 7.900000000372529,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 5.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.199999999254942,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0.2000000011175871,
+          "geometryMs": 0.8999999985098839,
+          "waterMs": 6.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.099999999627471,
+          "coreMs": 0.8000000007450581,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8999999985098839,
+          "waterMs": 6.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.200000001117587,
+          "coreMs": 0.7999999988824129,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 7.099999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.200000001117587,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 7.099999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 1.200000001117587,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.399999998509884,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.399999998509884,
+          "coreMs": 0.8000000007450581,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.6000000014901161,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.600000001490116,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.399999998509884,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.700000001117587,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.399999998509884,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.599999999627471,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.7999999988824129,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.800000000745058,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.799999998882413,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.600000001490116,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        }
+      ],
+      "frameIntervals": [
+        16.600000000000136,
+        16.699999999999818,
+        50,
+        16.600000000000136,
+        16.899999999999864,
+        16.5,
+        16.700000000000273,
+        33.5,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.59999999999991,
+        16.800000000000182,
+        16.699999999999818,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.59999999999991,
+        16.800000000000182,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.800000000000182,
+        16.59999999999991,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.699999999999818,
+        16.600000000000364,
+        16.799999999999727,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991
+      ],
+      "metrics": {
+        "displayStride": 2,
+        "displayTriangles": 8779776,
+        "chunkCount": 256,
+        "displayCells": 4194304,
+        "displayCellBudget": 4194304,
+        "viewAware": true,
+        "gridVisible": false,
+        "triangles": 33554432,
+        "geometryBytes": 268225488,
+        "waterTriangles": 2320,
+        "waterGeometryBytes": 104400,
+        "waterBudgetBytes": 16777216,
+        "drawCalls": 262,
+        "renderedTriangles": 8782352,
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "webgl2": true
+      },
+      "history": {
+        "undoCount": 1,
+        "redoCount": 0,
+        "queuedBytes": 0,
+        "storedBytes": 385784,
+        "failed": false,
+        "reading": false,
+        "paused": false,
+        "memoryOnly": false,
+        "dirty": true
+      }
+    },
+    {
+      "metadata": {
+        "schemaVersion": 1,
+        "benchmarkVersion": "interaction-v1",
+        "recordedAt": "2026-10-21T03:04:28.081Z",
+        "revision": "34260664a602f569d18cae8a028b0523bd668a07",
+        "repository": null,
+        "runId": null,
+        "runAttempt": null,
+        "runUrl": null,
+        "workflow": null,
+        "environment": {
+          "node": "v26.4.0",
+          "os": "win32",
+          "arch": "x64",
+          "cpu": "12th Gen Intel(R) Core(TM) i9-12900F",
+          "runnerOS": null,
+          "runnerName": null
+        }
+      },
+      "browser": "chrome",
+      "browserVersion": "155.0.8059.85",
+      "size": 4096,
+      "conditions": {
+        "radius": 40,
+        "amount": 8,
+        "tool": "lower",
+        "trial": 3,
+        "overrideCounts": {},
+        "baselineRef": null,
+        "overrides": []
+      },
+      "inputPoints": 41,
+      "elapsedMs": 818,
+      "summary": {
+        "medianUpdateMs": 5.599999999627471,
+        "p95UpdateMs": 9.400000000372529,
+        "maxUpdateMs": 10.900000000372529,
+        "firstUpdateMs": 32.90000000037253
+      },
+      "updates": [
+        {
+          "kind": "start",
+          "totalMs": 32.90000000037253,
+          "coreMs": 19.90000000037253,
+          "gridMs": 0.8999999985098839,
+          "geometryMs": 2.199999999254942,
+          "waterMs": 8.100000001490116,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 10.900000000372529,
+          "coreMs": 3,
+          "gridMs": 0.3999999985098839,
+          "geometryMs": 1.700000001117587,
+          "waterMs": 5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6.900000000372529,
+          "coreMs": 1.099999999627471,
+          "gridMs": 0.19999999925494194,
+          "geometryMs": 1.099999999627471,
+          "waterMs": 4.100000001490116,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6.599999999627471,
+          "coreMs": 1.1000000014901161,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 1.200000001117587,
+          "waterMs": 3.699999999254942,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 6.200000001117587,
+          "coreMs": 1.099999999627471,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 1,
+          "waterMs": 3.700000001117587,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.099999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.199999999254942,
+          "coreMs": 1,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 1.8999999985098839,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.099999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.2000000011175871,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 1.799999998882413,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.100000001490116,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.7999999988824129,
+          "waterMs": 1.800000000745058,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.199999999254942,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.7999999988824129,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4.100000001490116,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 1.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 4,
+          "coreMs": 1.099999999627471,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.599999999627471,
+          "waterMs": 1.799999998882413,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.600000001490116,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.799999998882413,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.7999999988824129,
+          "waterMs": 3.600000001490116,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.599999999627471,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.700000001117587,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.600000001490116,
+          "coreMs": 0.8000000007450581,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.799999998882413,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 7.799999998882413,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 5.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.099999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 7,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 8.900000000372529,
+          "coreMs": 0.7999999988824129,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 6.799999998882413,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 6.900000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 9.400000000372529,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 1,
+          "waterMs": 6.800000000745058,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.400000000372529,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 1.099999999627471,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.399999998509884,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 1,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.299999998882413,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0,
+          "geometryMs": 0.7999999988824129,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.700000001117587,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.8000000007450581,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 1,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.399999998509884,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.699999999254942,
+          "coreMs": 1.1000000014901161,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.599999999627471,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 1,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.5,
+          "coreMs": 1,
+          "gridMs": 0.10000000149011612,
+          "geometryMs": 0.7000000011175871,
+          "waterMs": 3.399999998509884,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.599999999627471,
+          "coreMs": 0.8999999985098839,
+          "gridMs": 0,
+          "geometryMs": 0.6999999992549419,
+          "waterMs": 3.5,
+          "points": 1
+        },
+        {
+          "kind": "move",
+          "totalMs": 5.399999998509884,
+          "coreMs": 0.900000000372529,
+          "gridMs": 0.09999999962747097,
+          "geometryMs": 0.599999999627471,
+          "waterMs": 3.400000000372529,
+          "points": 1
+        }
+      ],
+      "frameIntervals": [
+        16.59999999999991,
+        50,
+        16.700000000000045,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.800000000000182,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.800000000000182,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.799999999999727,
+        16.600000000000364,
+        16.699999999999818,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.799999999999727,
+        16.600000000000364,
+        16.59999999999991,
+        16.59999999999991,
+        16.800000000000182,
+        16.699999999999818,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.59999999999991,
+        16.90000000000009,
+        16.5,
+        16.699999999999818,
+        16.800000000000182,
+        16.59999999999991
+      ],
+      "metrics": {
+        "displayStride": 2,
+        "displayTriangles": 8779776,
+        "chunkCount": 256,
+        "displayCells": 4194304,
+        "displayCellBudget": 4194304,
+        "viewAware": true,
+        "gridVisible": false,
+        "triangles": 33554432,
+        "geometryBytes": 268225488,
+        "waterTriangles": 2320,
+        "waterGeometryBytes": 104400,
+        "waterBudgetBytes": 16777216,
+        "drawCalls": 262,
+        "renderedTriangles": 8782352,
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "webgl2": true
+      },
+      "history": {
+        "undoCount": 1,
+        "redoCount": 0,
+        "queuedBytes": 0,
+        "storedBytes": 385784,
+        "failed": false,
+        "reading": false,
+        "paused": false,
+        "memoryOnly": false,
+        "dirty": true
+      }
+    }
+  ],
+  "largeMap": {
+    "createMs": 3958,
+    "editMs": 92,
+    "undoMs": 2870,
+    "totalMs": 7665,
+    "metrics": {
+      "displayStride": 4,
+      "displayTriangles": 9678792,
+      "chunkCount": 1024,
+      "displayCells": 4190233,
+      "displayCellBudget": 4194304,
+      "viewAware": true,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 309274992,
+      "waterTriangles": 0,
+      "waterGeometryBytes": 0,
+      "waterBudgetBytes": 67108864,
+      "drawCalls": 994,
+      "renderedTriangles": 9581040,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    },
+    "detailMetrics": {
+      "displayStride": 4,
+      "displayTriangles": 9678792,
+      "chunkCount": 1024,
+      "displayCells": 4190233,
+      "displayCellBudget": 4194304,
+      "viewAware": true,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 309274992,
+      "waterTriangles": 0,
+      "waterGeometryBytes": 0,
+      "waterBudgetBytes": 67108864,
+      "drawCalls": 996,
+      "renderedTriangles": 9581296,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    }
+  },
+  "largeWater": {
+    "before": {
+      "displayStride": 4,
+      "displayTriangles": 9678792,
+      "chunkCount": 1024,
+      "displayCells": 4190233,
+      "displayCellBudget": 4194304,
+      "viewAware": true,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 344733552,
+      "waterTriangles": 787968,
+      "waterGeometryBytes": 35458560,
+      "waterBudgetBytes": 67108864,
+      "drawCalls": 1002,
+      "renderedTriangles": 10369008,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    },
+    "after": {
+      "displayStride": 4,
+      "displayTriangles": 9678792,
+      "chunkCount": 1024,
+      "displayCells": 4190233,
+      "displayCellBudget": 4194304,
+      "viewAware": true,
+      "gridVisible": false,
+      "triangles": 134217728,
+      "geometryBytes": 344783682,
+      "waterTriangles": 789082,
+      "waterGeometryBytes": 35508690,
+      "waterBudgetBytes": 67108864,
+      "drawCalls": 1003,
+      "renderedTriangles": 10370122,
+      "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "webgl2": true
+    },
+    "frames": {
+      "frameMedianMs": 1.300000000745058,
+      "frameP95Ms": 1.300000000745058
+    }
+  }
+}

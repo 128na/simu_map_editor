@@ -24,7 +24,7 @@ test('smoothing click applies one pass and undo restores the peak',async({page})
  await page.evaluate(()=>{const h=new Float32Array(1089);for(const i of [544,543,545,511,577])h[i]=1;(window as any).__validation.setMap({width:33,height:33,heights:h});});
  await page.locator('#tool').selectOption('smooth');const before=await snapshot(page);const at=await point(page);
  await page.mouse.click(at.x,at.y);await expect(page.locator('#status')).toContainText('平滑化');
- const after=await snapshot(page);expect(after.heights[544]).toBe(1);expect(after.heights[543]).toBe(0);expect(after.undoCount).toBe(1);
+ const after=await snapshot(page);expect(after.heights[544]).toBe(0);expect(after.heights[543]).toBe(0);expect(after.undoCount).toBe(1);
  await page.locator('#undo').click();await expect(page.locator('#status')).toContainText('造成を元に戻しました');expect((await snapshot(page)).heights).toEqual(before.heights);
 });
 

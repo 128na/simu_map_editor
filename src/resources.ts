@@ -8,5 +8,5 @@ export function mapResources(width:number,height:number){
 }
 export function largeMapWarning(width:number,height:number):string {
  const estimate=mapResources(width,height);
- return estimate.large?`大サイズマップ: ${width.toLocaleString()} × ${height.toLocaleString()}タイル。標準の4096四方を超えます。\n作業配列の概算 ${(estimate.workingBytes/1048576).toFixed(0)} MiB以上（画像展開・GPU等は別途）。端末によっては確保できません。全体表示は間引き、編集位置周辺を詳細表示します。\n`:'';
+ return estimate.large?`大サイズマップ: ${width.toLocaleString()} × ${height.toLocaleString()}タイル。標準の4096四方を超えます。\n作業配列の概算 ${(estimate.workingBytes/1048576).toFixed(0)} MiB以上（画像展開・GPU等は別途）。端末によっては確保できません。表示予算内で画面に映る範囲を優先して詳細表示します。\n`:'';
 }
