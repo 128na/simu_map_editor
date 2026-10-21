@@ -1,4 +1,10 @@
-import {test,expect} from '@playwright/test';
+import {test,expect,chromium} from '@playwright/test';
+// Apply the disk quota before opening IndexedDB; an existing bucket can retain its cached quota.
+const quotaTest=test.extend({context:async({},use,info)=>{
+ const context=await chromium.launchPersistentContext(info.outputPath('quota-profile'),{channel:info.project.name==='edge'?'msedge':info.project.name==='chrome'?'chrome':undefined,headless:true,baseURL:'http://127.0.0.1:4173',viewport:{width:1280,height:900}});
+ const cdp=await context.newCDPSession(context.pages()[0]),origin='http://127.0.0.1:4173';
+ try{await cdp.send('Storage.overrideQuotaForOrigin',{origin,quotaSize:1024*1024});await use(context);}finally{await cdp.send('Storage.overrideQuotaForOrigin',{origin});await cdp.detach();await context.close();}
+}});
 
 test('production history worker preserves persisted records when a multi-chunk write aborts midway',async({page})=>{
   let instrumented=0;
@@ -92,4 +98,34 @@ test('IndexedDB history sessions survive other tabs cleanup and dispose waits fo
     const store=(window as any).store;const put=store.put('pending',new Uint8Array([3]).buffer);const close=store.dispose();await Promise.all([put,close]);
     try{await store.get('same');return false;}catch{return true;}
   });expect(result).toBe(true);
+});
+
+
+quotaTest('production history store rolls back real quota failures and accepts a later retry',async({page})=>{
+  await page.goto('/');
+  const cdp=await page.context().newCDPSession(page),origin=new URL(page.url()).origin;
+  try{
+    await page.evaluate(async()=>{
+      const path='/src/history-store.ts';const {BrowserHistoryStore}=await import(path);
+      const store=new BrowserHistoryStore();(window as any).__quotaStore=store;
+      await store.put('quota-overwrite',new Uint8Array([3,5,8,13]).buffer);
+    });
+    const observed=await cdp.send('Storage.getUsageAndQuota',{origin});
+    expect(observed.quota).toBe(1024*1024);
+    const failed=await page.evaluate(async()=>{
+      const store=(window as any).__quotaStore,bytes=new Uint32Array(2*1024*1024);let seed=123456789;
+      for(let i=0;i<bytes.length;i++){seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;bytes[i]=seed>>>0;}
+      const failures:string[]=[];
+      for(const key of ['quota-overwrite','quota-new']){
+        try{await store.put(key,bytes.buffer);failures.push('unexpected success');}catch(error){failures.push((error as Error).name);}
+      }
+      const old=new Uint8Array(await store.get('quota-overwrite'));return {failures,old:Array.from(old.subarray(0,4)),oldBytes:old.byteLength,missing:await store.get('quota-new')===undefined,callerBytes:bytes.byteLength};
+    });
+    expect(failed).toEqual({failures:['QuotaExceededError','QuotaExceededError'],old:[3,5,8,13],oldBytes:4,missing:true,callerBytes:8*1024*1024});
+    await cdp.send('Storage.overrideQuotaForOrigin',{origin});
+    expect(await page.evaluate(async()=>{const store=(window as any).__quotaStore;await store.put('quota-new',new Uint8Array([21,34]).buffer);return Array.from(new Uint8Array(await store.get('quota-new')));})).toEqual([21,34]);
+  }finally{
+    await cdp.send('Storage.overrideQuotaForOrigin',{origin});
+    await page.evaluate(async()=>{await (window as any).__quotaStore?.dispose();});await cdp.detach();
+  }
 });

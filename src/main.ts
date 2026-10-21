@@ -36,7 +36,7 @@ const gridOffset={value:new THREE.Vector2(map.width/2,map.height/2)};
 let grid: Int16Array;
 let hoverScreen:{clientX:number;clientY:number}|null=null;
 let history:AsyncHistory;
-let historyPaused=false,waitingForDrain=false,memoryHistory=false;
+let historyPaused=false,historyReadFailed=false,waitingForDrain=false,memoryHistory=false;
 let historyFault:{putDelayMs?:number;readDelayMs?:number;failPut?:boolean;failRead?:boolean}={};
 let revisionSerial=0,revisions=[0],savedRevision=0,savedEncoding=encodingKey(profile);
 const revision=()=>revisions[history?.getState().undoCount??0];
@@ -79,11 +79,11 @@ function historyButtons(){
  const state=history.getState();
  el<HTMLButtonElement>('undo').disabled=busy||state.reading||state.undoCount===0;
  el<HTMLButtonElement>('redo').disabled=busy||state.reading||state.redoCount===0;
- if(waitingForDrain&&!busy&&!state.reading&&!state.failed&&state.queuedBytes===0){historyPaused=false;waitingForDrain=false;status('履歴の退避が完了しました。造成を再開できます');}
- el('historyState').textContent=`${memoryHistory?`RAM履歴（上限 ${((historyOptions.ramBudgetBytes??0)/1048576).toFixed(0)} MiB）`:'IndexedDB履歴'}: Undo ${state.undoCount} / Redo ${state.redoCount}\n退避待ち ${(state.queuedBytes/1048576).toFixed(2)} MiB / ${memoryHistory?'RAM保存':'保存済み'} ${(state.storedBytes/1048576).toFixed(2)} MiB${state.failed?'\n保存失敗: 未退避履歴をRAMに保持しています':''}${state.reading?'\n履歴を読み込み中…':''}${historyPaused?'\n造成は一時停止中':''}`;
+ if(waitingForDrain&&!busy&&!state.reading&&!state.failed&&state.queuedBytes===0){historyPaused=false;waitingForDrain=false;if(!historyReadFailed)status('履歴の退避が完了しました。造成を再開できます');}
+ el('historyState').textContent=`${memoryHistory?`RAM履歴（上限 ${((historyOptions.ramBudgetBytes??0)/1048576).toFixed(0)} MiB）`:'IndexedDB履歴'}: Undo ${state.undoCount} / Redo ${state.redoCount}\n退避待ち ${(state.queuedBytes/1048576).toFixed(2)} MiB / ${memoryHistory?'RAM保存':'保存済み'} ${(state.storedBytes/1048576).toFixed(2)} MiB${state.failed?'\n保存失敗: 未退避履歴をRAMに保持しています':''}${state.reading?'\n履歴を読み込み中…':''}${historyReadFailed?'\n履歴の復元に失敗しました':''}${historyPaused||historyReadFailed?'\n造成は一時停止中':''}`;
  el<HTMLSelectElement>('historyDisk').disabled=busy||state.reading||memoryHistory;
- el<HTMLButtonElement>('historyMemory').hidden=!(state.failed||historyPaused);
- if(state.failed||historyPaused)el<HTMLDetailsElement>('historySettings').open=true;
+ el<HTMLButtonElement>('historyMemory').hidden=!(state.failed||historyPaused||historyReadFailed);
+ if(state.failed||historyPaused||historyReadFailed)el<HTMLDetailsElement>('historySettings').open=true;
 }
 function makeHistory(options:HistoryOptions=historyOptions,ramOnly=memoryHistory){
  const memory=new Map<string,ArrayBuffer>();
@@ -106,12 +106,12 @@ function historyFailure(error:unknown){
  historyPaused=true;waitingForDrain=error instanceof HistoryBudgetError&&error.reason==='ram'&&error.requiredBytes<=(historyOptions.ramBudgetBytes??0)&&history.getState().queuedBytes>0&&!history.getState().failed;
  status(`造成を反映できませんでした。地形と履歴は変更前へ戻しました。${waitingForDrain?'履歴の退避完了を待っています。':'画像を書き出すか、履歴予算の変更／履歴破棄を確認してください。'}\n${String(error)}`,true);historyButtons();
 }
-function resetHistory(){history.reset();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];historyButtons();}
+function resetHistory(){history.reset();historyPaused=false;historyReadFailed=false;waitingForDrain=false;revisions=[++revisionSerial];historyButtons();}
 function rememberRevision(){const count=history.getState().undoCount;revisions=revisions.slice(0,count);revisions.push(++revisionSerial);}
 function recordHistory(patch:Parameters<AsyncHistory['record']>[0]){
  const started=performance.now();try{history.record(patch);}finally{lastTimings.historyRecordMs=performance.now()-started;}
 }
-function editingBlocked(){return busy||historyPaused||history.getState().reading||history.getState().failed;}
+function editingBlocked(){return busy||historyPaused||historyReadFailed||history.getState().reading||history.getState().failed;}
 history=makeHistory();historyButtons();
 input('historyRam').value=String(ramBudgetMiB);input('historyDisk').value=String(diskBudgetMiB);
 type Edit={incremental:boolean;bounds:DirtyBounds|null};
@@ -256,21 +256,21 @@ el('exportPng').addEventListener('click',()=>void downloadMap('png'));
 async function moveHistory(redo=false){
  if(busy||history.getState().reading)return;
  setBusy(true);status('履歴を読み込み中…');
- try{const moved=await (redo?history.redo(map,next=>rebuild(next)):history.undo(map,next=>rebuild(next)));if(moved)status(redo?'造成をやり直しました':'造成を元に戻しました');}
- catch(error){status(`履歴を復元できませんでした。地形と履歴位置を保持しています。\n${String(error)}`,true);}
+ try{const moved=await (redo?history.redo(map,next=>rebuild(next)):history.undo(map,next=>rebuild(next)));if(moved){historyReadFailed=false;status(redo?'造成をやり直しました':'造成を元に戻しました');}}
+ catch(error){historyReadFailed=true;status(`履歴を復元できませんでした。地形と履歴位置を保持し、造成を一時停止しました。再試行、画像の書き出し、履歴の破棄／RAMのみへの切り替えができます。\n${String(error)}`,true);}
  finally{setBusy(false);}
 }
 el('undo').addEventListener('click',()=>void moveHistory());el('redo').addEventListener('click',()=>void moveHistory(true));
 el('historyDiscard').addEventListener('click',()=>{if(!confirm('現在の地形は保持し、Undo/Redo履歴をすべて破棄して続行しますか？'))return;const wasDirty=hasUnsavedChanges();resetHistory();if(!wasDirty)savedRevision=revision();status('履歴を破棄しました。現在の地形は保持しています');});
 el('historyMemory').addEventListener('click',()=>{
  if(!confirm('現在の履歴を破棄し、ブラウザ保存を使わずRAMのみで履歴を保持して続行しますか？'))return;
- const old=history,wasDirty=hasUnsavedChanges();memoryHistory=true;history=makeHistory();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];if(!wasDirty)savedRevision=revision();void old.dispose().catch(()=>{});historyButtons();status('RAMのみの履歴へ切り替えました。現在の地形は保持しています');
+ const old=history,wasDirty=hasUnsavedChanges();memoryHistory=true;history=makeHistory();historyPaused=false;historyReadFailed=false;waitingForDrain=false;revisions=[++revisionSerial];if(!wasDirty)savedRevision=revision();void old.dispose().catch(()=>{});historyButtons();status('RAMのみの履歴へ切り替えました。現在の地形は保持しています');
 });
 for(const id of ['historyRam','historyDisk'])el(id).addEventListener('change',()=>{
  const ram=Number(input('historyRam').value),disk=Number(input('historyDisk').value);
  if(!confirm('履歴予算を変更すると現在のUndo/Redo履歴を破棄します。地形を保持して続行しますか？')){input('historyRam').value=String(ramBudgetMiB);input('historyDisk').value=String(diskBudgetMiB);return;}
  const old=history,wasDirty=hasUnsavedChanges();ramBudgetMiB=ram;diskBudgetMiB=disk;historyOptions={...historyOptions,ramBudgetBytes:ram*1048576,diskBudgetBytes:disk*1048576};
- history=makeHistory();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];if(!wasDirty)savedRevision=revision();void old.dispose().catch(()=>{});
+ history=makeHistory();historyPaused=false;historyReadFailed=false;waitingForDrain=false;revisions=[++revisionSerial];if(!wasDirty)savedRevision=revision();void old.dispose().catch(()=>{});
  try{localStorage.setItem('simu-history-ram-mib',String(ram));localStorage.setItem('simu-history-disk-mib',String(disk));}catch{/* Settings persistence is optional. */}
  historyButtons();status('履歴予算を更新しました');
 });
@@ -480,7 +480,7 @@ function visibilityChanged(){if(document.hidden)editorInput.clear();renderLoop!.
 document.addEventListener('visibilitychange',visibilityChanged);
 renderer.domElement.addEventListener('webglcontextrestored',invalidate);
 visibilityChanged();rebuild();view();invalidate();status('128 × 128タイルの平坦な地形で開始しました。サイズを指定して新規作成するか、マップ画像を開いてください。');
-if(new URLSearchParams(location.search).has('validate')){const gl=renderer.getContext();const debug=gl.getExtension('WEBGL_debug_renderer_info');Object.assign(window,{__validation:{getEditorSettings:()=>({...settings}),getDisplayChunks:()=>terrain?.children.map(child=>{const g=(child as THREE.Mesh).geometry;return {x0:g.userData.x0,y0:g.userData.y0,x1:g.userData.x1,y1:g.userData.y1,stride:g.userData.stride,minHeight:g.boundingBox?.min.y,maxHeight:g.boundingBox?.max.y};}).map(({x0,y0,x1,y1,stride,minHeight,maxHeight})=>({x0,y0,x1,y1,stride,minHeight,maxHeight})),getInteractionUpdates:()=>interactionUpdates.map(value=>({...value})),resetInteractionUpdates:()=>{interactionUpdates.length=0;},getHistoryState:()=>({...history.getState(),paused:historyPaused,memoryOnly:memoryHistory,dirty:hasUnsavedChanges()}),waitHistory:()=>history.settled(),setHistoryFault:(fault:typeof historyFault)=>{historyFault={...fault};},configureHistory:(options:HistoryOptions)=>{if(history.getState().reading||gesture)throw new Error('History is busy');const old=history;historyOptions={...historyOptions,...options};memoryHistory=false;history=makeHistory();historyPaused=false;waitingForDrain=false;revisions=[++revisionSerial];void old.dispose().catch(()=>{});historyButtons();},getTimings:()=>({...lastTimings}),projectSample:(x:number,y:number)=>{camera.updateMatrixWorld();const xi=Math.max(0,Math.min(map.width,Math.round(x))),yi=Math.max(0,Math.min(map.height,Math.round(y)));const v=new THREE.Vector3(x-map.width/2,grid[xi+yi*(map.width+1)],y-map.height/2).project(camera);const r=renderer.domElement.getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},getSnapshot:()=>({width:map.width,height:map.height,heights:Array.from(map.heights),grid:Array.from(grid),profile:{...profile},undoCount:history.getState().undoCount,redoCount:history.getState().redoCount}),setMap,stroke,getMetrics:()=>({displayStride:terrain?.metrics.stride,displayTriangles:terrain?.metrics.triangles,chunkCount:terrain?.metrics.chunkCount,displayCells:terrain?.metrics.regularCells,displayCellBudget:terrain?.metrics.cellBudget,viewAware:terrain?.metrics.viewAware,gridVisible:gridEnabled.value,triangles:map.width*map.height*2,geometryBytes:(terrain?.metrics.geometryBytes??0)+(water?.metrics.geometryBytes??0),waterTriangles:water?.metrics.triangles??0,waterGeometryBytes:water?.metrics.geometryBytes??0,waterBudgetBytes:water?.metrics.budgetBytes??0,drawCalls:renderer.info.render.calls,renderedTriangles:renderer.info.render.triangles,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),webgl2:gl instanceof WebGL2RenderingContext}),renderSample:async(frames=20)=>{const times:number[]=[];for(let i=0;i<frames;i++){await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return{frameMedianMs:times[Math.floor(times.length*.5)],frameP95Ms:times[Math.min(times.length-1,Math.floor(times.length*.95))]};}}});}
+if(new URLSearchParams(location.search).has('validate')){const gl=renderer.getContext();const debug=gl.getExtension('WEBGL_debug_renderer_info');Object.assign(window,{__validation:{getEditorSettings:()=>({...settings}),getDisplayChunks:()=>terrain?.children.map(child=>{const g=(child as THREE.Mesh).geometry;return {x0:g.userData.x0,y0:g.userData.y0,x1:g.userData.x1,y1:g.userData.y1,stride:g.userData.stride,minHeight:g.boundingBox?.min.y,maxHeight:g.boundingBox?.max.y};}).map(({x0,y0,x1,y1,stride,minHeight,maxHeight})=>({x0,y0,x1,y1,stride,minHeight,maxHeight})),getInteractionUpdates:()=>interactionUpdates.map(value=>({...value})),resetInteractionUpdates:()=>{interactionUpdates.length=0;},getHistoryState:()=>({...history.getState(),paused:historyPaused||historyReadFailed,readFailed:historyReadFailed,memoryOnly:memoryHistory,dirty:hasUnsavedChanges()}),waitHistory:()=>history.settled(),setHistoryFault:(fault:typeof historyFault)=>{historyFault={...fault};},configureHistory:(options:HistoryOptions)=>{if(history.getState().reading||gesture)throw new Error('History is busy');const old=history;historyOptions={...historyOptions,...options};memoryHistory=false;history=makeHistory();historyPaused=false;historyReadFailed=false;waitingForDrain=false;revisions=[++revisionSerial];void old.dispose().catch(()=>{});historyButtons();},getTimings:()=>({...lastTimings}),projectSample:(x:number,y:number)=>{camera.updateMatrixWorld();const xi=Math.max(0,Math.min(map.width,Math.round(x))),yi=Math.max(0,Math.min(map.height,Math.round(y)));const v=new THREE.Vector3(x-map.width/2,grid[xi+yi*(map.width+1)],y-map.height/2).project(camera);const r=renderer.domElement.getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},getSnapshot:()=>({width:map.width,height:map.height,heights:Array.from(map.heights),grid:Array.from(grid),profile:{...profile},undoCount:history.getState().undoCount,redoCount:history.getState().redoCount}),setMap,stroke,getMetrics:()=>({displayStride:terrain?.metrics.stride,displayTriangles:terrain?.metrics.triangles,chunkCount:terrain?.metrics.chunkCount,displayCells:terrain?.metrics.regularCells,displayCellBudget:terrain?.metrics.cellBudget,viewAware:terrain?.metrics.viewAware,gridVisible:gridEnabled.value,triangles:map.width*map.height*2,geometryBytes:(terrain?.metrics.geometryBytes??0)+(water?.metrics.geometryBytes??0),waterTriangles:water?.metrics.triangles??0,waterGeometryBytes:water?.metrics.geometryBytes??0,waterBudgetBytes:water?.metrics.budgetBytes??0,drawCalls:renderer.info.render.calls,renderedTriangles:renderer.info.render.triangles,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),webgl2:gl instanceof WebGL2RenderingContext}),renderSample:async(frames=20)=>{const times:number[]=[];for(let i=0;i<frames;i++){await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));const start=performance.now();renderer.render(scene,camera);gl.finish();times.push(performance.now()-start);}times.sort((a,b)=>a-b);return{frameMedianMs:times[Math.floor(times.length*.5)],frameP95Ms:times[Math.min(times.length-1,Math.floor(times.length*.95))]};}}});}
 if(interactionDiagnostics)Object.assign((window as unknown as {__validation:object}).__validation,{getMapDigest});
 
 if(interactionDiagnostics)Object.assign((window as unknown as {__validation:object}).__validation,{getImageIoState:()=>({active:!!fileOperation,kind:fileOperation?.kind,cancellable:fileOperation?.cancellable??false,last:lastImageIo})});

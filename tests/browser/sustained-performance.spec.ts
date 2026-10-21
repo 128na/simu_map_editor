@@ -25,14 +25,16 @@ function sourceHashes(){
 }
 
 test('sustained real drag and history workload records chronological latency and memory samples',async({page,browser},info)=>{
-  test.skip(info.project.name!=='sustained-chrome','Local opt-in: npm run benchmark:sustained');
-  const size=integer('SUSTAINED_SIZE',4096,256,8192),seconds=integer('SUSTAINED_SECONDS',60,1,600);
+  test.skip(!info.project.name.startsWith('sustained-'),'Local opt-in: npm run benchmark:sustained');
+  const size=integer('SUSTAINED_SIZE',4096,256,8192),seconds=integer('SUSTAINED_SECONDS',60,1,900);
   const minimumCycles=integer('SUSTAINED_CYCLES',12,2,300),radius=integer('SUSTAINED_RADIUS',40,1,40),amount=integer('SUSTAINED_AMOUNT',1,1,8);
-  const maximumCycles=300;
+  const maximumCycles=integer('SUSTAINED_MAX_CYCLES',3000,minimumCycles,10000);
+  const terrain=process.env.SUSTAINED_TERRAIN??'flat';
+  if(!['flat','coast','slopes'].includes(terrain))throw new Error('SUSTAINED_TERRAIN must be flat, coast or slopes');
   test.setTimeout(seconds*1000+240000);
   const cycles:Cycle[]=[],frames:Frame[]=[];
-  const report:any={schemaVersion:1,metadata:createPerformanceMetadata('sustained-v1'),sources:sourceHashes(),browser:info.project.name,browserVersion:browser.version(),
-    conditions:{size,seconds,minimumCycles,maximumCycles,radius,amount,profile:{...DEFAULT_PROFILE},map:'flat',input:'real nine-point mouse drag',undoRedoEvery:3,warmupCycles:0},cycles,frames,
+  const report:any={schemaVersion:1,metadata:createPerformanceMetadata('sustained-v2'),sources:sourceHashes(),browser:info.project.name,browserVersion:browser.version(),
+    conditions:{size,seconds,minimumCycles,maximumCycles,radius,amount,profile:{...DEFAULT_PROFILE},map:terrain,input:'real nine-point mouse drag',undoRedoEvery:3,warmupCycles:0},cycles,frames,
     completed:false,endReason:'setup-failed',windowGrouping:'chronological cycle-count thirds (not equal elapsed-time bands)',
     timebases:{cycleAtMs:'Node monotonic milliseconds since workload start',phaseAndFrameAtMs:'Browser monotonic milliseconds since frame recorder origin',durationMs:'Node monotonic durations around actions'},limitations:[
       'Phase durations include Playwright transport and UI waits; synchronous history timings and interaction updates are recorded separately.',
@@ -47,8 +49,21 @@ test('sustained real drag and history workload records chronological latency and
     await page.goto('/?validate=1');await page.waitForFunction(()=>!!(window as any).__validation);
     await page.locator('#newWidth').fill(String(size));await page.locator('#newHeight').fill(String(size));
     await page.locator('#create').click({timeout:180000});await expect(page.locator('#status')).toContainText(`${size} × ${size}`,{timeout:180000});
+    if(terrain!=='flat')await page.evaluate(({size,terrain})=>{
+      const heights=new Float32Array(size*size);
+      for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+        // Integer, neighboring changes <= 1; deterministic coast or full-range slope bands.
+        heights[x+y*size]=terrain==='coast'?Math.round(4*Math.sin(x/64)+3*Math.cos(y/96)):
+          Math.round(10+22*Math.sin(x/192)*Math.cos(y/256));
+      }
+      (window as any).__validation.setMap({width:size,height:size,heights});
+    },{size,terrain});
+    await page.evaluate(maxEntries=>(window as any).__validation.configureHistory({maxEntries,ramBudgetBytes:64*1048576,diskBudgetBytes:512*1048576}),maximumCycles);
+    report.historyOptions={maxEntries:maximumCycles,ramBudgetBytes:64*1048576,diskBudgetBytes:512*1048576};
     await page.locator('#top').click();await page.locator('#radius').fill(String(radius));await page.locator('#amount').fill(String(amount));
     report.initialMetrics=await page.evaluate(()=>(window as any).__validation.getMetrics());
+    report.resourceSettings=await page.evaluate(()=>(window as any).__validation.getEditorSettings());
+    report.knownResidentArrays={sourceHeightsBytes:size*size*4,renderGridBytes:(size+1)*(size+1)*2,note:'Named persistent CPU arrays only; geometry is recorded separately; Worker/browser/GPU/temporary allocations excluded'};
     await page.evaluate(()=>{
       const sample={running:true,origin:performance.now(),last:0,cycle:-1,phase:'setup',frames:[] as Frame[]};
       (window as any).__sustainedFrames=sample;
