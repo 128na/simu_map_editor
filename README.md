@@ -67,7 +67,7 @@ npm run test:browser
 
 `npm run build` で生成する `dist/` をHTTPで配信します。`npm run preview` でローカル確認できます。アセットとWorkerは相対パスで、配信先のサブディレクトリ名に依存しません。`file://` で直接開く運用には対応しません。
 
-GitHub Pagesはリポジトリの Settings → Pages → Source を GitHub Actions に設定します。mainへのpush、またはmainを指定したGitHub Pagesワークフローの手動実行で、検証後に `dist/` のみを公開します。依存取得はHTTPSを使用し、docs-lintも固定コミットのアーカイブから取得するためSSH鍵は不要です。
+GitHub Pagesはリポジトリの Settings → Pages → Source を GitHub Actions に設定します。mainへのpush、またはmainを指定したCIワークフローの手動実行で、単体・ブラウザ回帰・配信成果物の検証後に `dist/` のみを公開します。依存取得はHTTPSを使用し、docs-lintも固定コミットのアーカイブから取得するためSSH鍵は不要です。
 
 ## 性能計測
 
