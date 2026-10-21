@@ -56,3 +56,49 @@ test('multi-update drag keeps its path, cancels exactly and rolls back a rejecte
  await page.mouse.up();await expect(page.locator('#status')).toContainText('変更前へ戻しました');
  const rejected=await snapshot(page);expect(rejected.heights).toEqual(original.heights);expect(rejected.grid).toEqual(original.grid);expect(rejected.undoCount).toBe(0);
 });
+
+
+test('keyboard tools and brush settings respect inputs, composition and a live gesture',async({page})=>{
+ await page.keyboard.press('4');await expect(page.locator('#tool')).toHaveValue('smooth');await expect(page.locator('#smoothingControls')).toBeVisible();
+ await page.keyboard.press('2');await expect(page.locator('#tool')).toHaveValue('lower');
+ await page.keyboard.press(']');await expect(page.locator('#radius')).toHaveValue('3');
+ await page.keyboard.press('[');await expect(page.locator('#radius')).toHaveValue('2');
+ await page.keyboard.press('+');await expect(page.locator('#amount')).toHaveValue('2');
+ await page.keyboard.press('-');await expect(page.locator('#amount')).toHaveValue('1');
+ await page.keyboard.press('-');await expect(page.locator('#amount')).toHaveValue('1');
+ await page.locator('#amount').focus();await page.keyboard.press('4');await expect(page.locator('#tool')).toHaveValue('lower');
+ await page.locator('#amount').fill('1');await page.locator('#top').click();
+ await page.evaluate(()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'4',isComposing:true,bubbles:true})));await expect(page.locator('#tool')).toHaveValue('lower');
+ await page.keyboard.press('1');const original=await snapshot(page),at=await point(page);await page.mouse.move(at.x,at.y);await page.mouse.down();
+ await page.keyboard.press('4');await page.keyboard.press(']');await expect(page.locator('#tool')).toHaveValue('raise');await expect(page.locator('#radius')).toHaveValue('2');
+ await page.keyboard.press('Escape');await page.mouse.up();expect((await snapshot(page)).heights).toEqual(original.heights);
+ await page.keyboard.press('g');await expect(page.locator('#gridToggle')).toBeChecked();await page.keyboard.press('g');await expect(page.locator('#gridToggle')).not.toBeChecked();
+});
+
+test('keyboard history, image chooser and PNG export use the existing file operations',async({page})=>{
+ const original=await snapshot(page);const at=await point(page);await page.mouse.click(at.x,at.y);const edited=await snapshot(page);expect(edited.undoCount).toBe(1);
+ await page.keyboard.press('Control+z');await expect(page.locator('#status')).toContainText('元に戻しました');expect((await snapshot(page)).heights).toEqual(original.heights);
+ await page.keyboard.press('Control+Shift+z');await expect(page.locator('#status')).toContainText('やり直しました');expect((await snapshot(page)).heights).toEqual(edited.heights);
+ await page.keyboard.press('Control+z');await expect(page.locator('#status')).toContainText('元に戻しました');
+ await page.keyboard.press('Control+y');await expect(page.locator('#status')).toContainText('やり直しました');
+ const pending=page.waitForEvent('download');await page.keyboard.press('Control+s');const download=await pending;expect(download.suggestedFilename()).toMatch(/\.png$/);
+ const chooser=page.waitForEvent('filechooser');await page.keyboard.press('Control+o');await chooser;
+});
+
+test('arrow keys pan in screen directions and stop on release or input focus',async({page})=>{
+ const original=await snapshot(page);
+ for(const view of ['top','oblique','rotated']){
+  if(view==='rotated'){const box=(await page.locator('#viewport canvas').boundingBox())!;await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down({button:'right'});await page.mouse.move(box.x+box.width*.75,box.y+box.height/2,{steps:8});await page.mouse.up({button:'right'});await page.waitForTimeout(500);}
+  else await page.locator('#'+view).click();
+  await expect.poll(async()=>{const a=await point(page);await page.waitForTimeout(100);const b=await point(page);return Math.hypot(b.x-a.x,b.y-a.y);}).toBeLessThan(.2);
+  for(const [key,axis,sign] of [['ArrowRight','x',-1],['ArrowLeft','x',1],['ArrowUp','y',1],['ArrowDown','y',-1]] as const){
+   const before=await point(page);await page.keyboard.down(key);
+   await expect.poll(async()=>((await point(page))[axis]-before[axis])*sign).toBeGreaterThan(2);await page.keyboard.up(key);
+   const released=await point(page);await page.waitForTimeout(120);expect(Math.abs((await point(page))[axis]-released[axis])).toBeLessThan(1);
+  }
+ }
+ await page.keyboard.press('v');const top=await point(page,10,10);await page.keyboard.press('v');const oblique=await point(page,10,10);expect(Math.abs(top.y-oblique.y)).toBeGreaterThan(2);
+ await page.locator('#top').click();await page.keyboard.down('ArrowRight');const before=await point(page);await expect.poll(async()=>Math.abs((await point(page)).x-before.x)).toBeGreaterThan(2);
+ await page.locator('#amount').focus();const stopped=await point(page);await page.waitForTimeout(120);expect(Math.abs((await point(page)).x-stopped.x)).toBeLessThan(1);await page.keyboard.up('ArrowRight');
+ const after=await snapshot(page);expect(after.heights).toEqual(original.heights);expect(after.undoCount).toBe(0);
+});
